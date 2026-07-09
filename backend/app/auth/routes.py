@@ -32,3 +32,20 @@ def register():
     db.session.commit()
 
     return jsonify({"message": "Registered successfully", "user": user.to_dict()}), 201
+
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not bcrypt.check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # NOTE: identity must be a string — Flask-JWT-Extended rejects raw ints
+    token = create_access_token(identity=str(user.id))
+    return jsonify({"access_token": token, "user": user.to_dict()}), 200
