@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 from app.extensions import db, bcrypt
 from app.models.user import User
@@ -33,8 +34,6 @@ def register():
 
     return jsonify({"message": "Registered successfully", "user": user.to_dict()}), 201
 
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -46,6 +45,24 @@ def login():
     if not user or not bcrypt.check_password_hash(user.password_hash, password):
         return jsonify({"error": "Invalid email or password"}), 401
 
-    # NOTE: identity must be a string — Flask-JWT-Extended rejects raw ints
     token = create_access_token(identity=str(user.id))
     return jsonify({"access_token": token, "user": user.to_dict()}), 200
+
+
+@auth_bp.route("/me", methods=["GET"])
+@jwt_required()
+def me():
+    user = User.query.get(int(get_jwt_identity()))
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(user.to_dict()), 200
+
+
+@auth_bp.route("/search", methods=["GET"])
+@jwt_required()
+def search_users():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([]), 200
+    results = User.query.filter(User.username.ilike(f"%{q}%")).limit(10).all()
+    return jsonify([u.to_dict() for u in results]), 200
