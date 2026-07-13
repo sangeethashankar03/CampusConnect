@@ -36,3 +36,16 @@ def register_public_key():
         )
     db.session.commit()
     return jsonify({"message": "Public keys registered"}), 201
+@crypto_bp.route("/<int:user_id>", methods=["GET"])
+@jwt_required()
+def get_public_key(user_id):
+    key = PublicKey.query.filter_by(user_id=user_id).first()
+    if not key:
+        return jsonify({"error": "No public key found for this user"}), 404
+    return jsonify(
+        {
+            "user_id": user_id,
+            "encryption_key": key.encryption_key_pem,
+            "signing_key": key.signing_key_pem,
+        }
+    ), 200
