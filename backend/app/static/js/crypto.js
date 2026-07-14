@@ -31,3 +31,36 @@ function pemToArrayBuffer(pem) {
     .replace(/\s/g, "");
   return base64ToArrayBuffer(b64);
 }
+async function importEncryptionPublicKey(pem) {
+  return window.crypto.subtle.importKey(
+    "spki",
+    pemToArrayBuffer(pem),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    true,
+    ["encrypt"]
+  );
+}
+
+async function importVerifyPublicKey(pem) {
+  return window.crypto.subtle.importKey(
+    "spki",
+    pemToArrayBuffer(pem),
+    { name: "RSA-PSS", hash: "SHA-256" },
+    true,
+    ["verify"]
+  );
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  bytes.forEach((b) => (binary += String.fromCharCode(b)));
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
