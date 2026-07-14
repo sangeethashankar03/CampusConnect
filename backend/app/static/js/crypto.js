@@ -70,3 +70,35 @@ async function generateAesKey() {
     "decrypt",
   ]);
 }
+async function encryptMessage(plaintext, recipientEncryptionKeyPem, senderSigningPrivateKey) {
+  const aesKey = await generateAesKey();
+  const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+
+  const encodedText = new TextEncoder().encode(plaintext);
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    aesKey,
+    encodedText
+  );
+
+  const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+  const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
+  const encAesKey = await window.crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    recipientEncryptionKey,
+    rawAesKey
+  );
+
+  const signature = await window.crypto.subtle.sign(
+    { name: "RSA-PSS", saltLength: 32 },
+    senderSigningPrivateKey,
+    ciphertext
+  );
+
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    nonce: arrayBufferToBase64(nonce),
+    enc_aes_key: arrayBufferToBase64(encAesKey),
+    signature: arrayBufferToBase64(signature),
+  };
+}
