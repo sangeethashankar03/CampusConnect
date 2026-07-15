@@ -102,3 +102,36 @@ async function encryptMessage(plaintext, recipientEncryptionKeyPem, senderSignin
     signature: arrayBufferToBase64(signature),
   };
 }
+async function decryptMessage(payload, recipientEncryptionPrivateKey, senderSigningKeyPem) {
+  const ciphertext = base64ToArrayBuffer(payload.ciphertext);
+  const nonce = base64ToArrayBuffer(payload.nonce);
+  const signature = base64ToArrayBuffer(payload.signature);
+
+  const senderVerifyKey = await importVerifyPublicKey(senderSigningKeyPem);
+  const isValid = await window.crypto.subtle.verify(
+    { name: "RSA-PSS", saltLength: 32 },
+    senderVerifyKey,
+    signature,
+    ciphertext
+  );
+  if (!isValid) {
+    throw new Error("Signature verification failed — message may have been tampered with");
+  }
+
+  const encAesKey = base64ToArrayBuffer(payload.enc_aes_key);
+  const rawAesKey = await window.crypto.subtle.decrypt(
+    { name: "RSA-OAEP" },
+    recipientEncryptionPrivateKey,
+    encAesKey
+  );
+  const aesKey = await window.crypto.subtle.importKey("raw", rawAesKey, { name: "AES-GCM" }, false, [
+    "decrypt",
+  ]);
+
+  const plaintextBuffer = await window.crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: nonce },
+    aesKey,
+    ciphertext
+  );
+  return new TextDecoder().decode(plaintextBuffer);
+}
