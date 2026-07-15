@@ -37,3 +37,21 @@ def join_group(group_id):
     db.session.add(GroupMembership(group_id=group_id, user_id=user_id, role="member"))
     db.session.commit()
     return jsonify({"message": "Joined group"}), 200
+
+@groups_bp.route("/<int:group_id>/leave", methods=["POST"])
+@jwt_required()
+@group_member_required
+def leave_group(group_id):
+    user_id = int(get_jwt_identity())
+    membership = GroupMembership.query.filter_by(group_id=group_id, user_id=user_id).first()
+    db.session.delete(membership)
+    db.session.commit()
+    return jsonify({"message": "Left group"}), 200
+
+
+@groups_bp.route("/<int:group_id>/members", methods=["GET"])
+@jwt_required()
+@group_member_required
+def list_members(group_id):
+    members = GroupMembership.query.filter_by(group_id=group_id).all()
+    return jsonify([{"user_id": m.user_id, "role": m.role} for m in members]), 200
