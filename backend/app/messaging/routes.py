@@ -27,3 +27,18 @@ def send_message():
     db.session.add(message)
     db.session.commit()
     return jsonify(message.to_dict()), 201
+
+
+@messaging_bp.route("/<int:peer_id>", methods=["GET"])
+@jwt_required()
+def get_conversation(peer_id):
+    user_id = int(get_jwt_identity())
+    messages = (
+        Message.query.filter(
+            ((Message.sender_id == user_id) & (Message.receiver_id == peer_id))
+            | ((Message.sender_id == peer_id) & (Message.receiver_id == user_id))
+        )
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    return jsonify([m.to_dict() for m in messages]), 200
