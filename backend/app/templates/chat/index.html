@@ -9,4 +9,67 @@
   <textarea id="message-text" placeholder="Type a message..." rows="3"></textarea><br>
   <button id="send-btn">Send</button>
 </div>
+
+<script>
+let myEncryptionKeyPair = null;
+let mySigningKeyPair = null;
+
+async function ensureMyKeys() {
+  if (!myEncryptionKeyPair) myEncryptionKeyPair = await generateEncryptionKeyPair();
+  if (!mySigningKeyPair) mySigningKeyPair = await generateSigningKeyPair();
+}
+
+document.getElementById("send-btn").addEventListener("click", async () => {
+  const peerId = document.getElementById("peer-id").value;
+  const text = document.getElementById("message-text").value;
+  if (!peerId || !text) return;
+
+  await ensureMyKeys();
+
+  // Fetch the recipient's public keys so we can encrypt for them
+  const recipientKeys = await apiFetch(`/keys/${peerId}`);
+
+  const payload = await encryptMessage(
+    text,
+    recipientKeys.encryption_key,
+    mySigningKeyPair.privateKey
+  );
+  payload.receiver_id = parseInt(peerId, 10);
+
+  await apiFetch("/messages/", { method: "POST", body: JSON.stringify(payload) });
+  document.getElementById("message-text").value = "";
+  loadConversation();
+});
+
+document.getElementById("load-btn").addEventListener("click", loadConversation);
+
+async function loadConversation() {
+  const peerId = document.getElementById("peer-id").value;
+  if (!peerId) return;
+
+  await ensureMyKeys();
+  const senderKeys = await apiFetch(`/keys/${peerId}`);
+
+  const messages = await apiFetch(`/messages/${peerId}`);
+  const container = document.getElementById("messages");
+  container.innerHTML = "";
+
+  for (const msg of messages) {
+    try {
+      const plaintext = await decryptMessage(
+        msg,
+        myEncryptionKeyPair.privateKey,
+        senderKeys.signing_key
+      );
+      const p = document.createElement("p");
+      p.textContent = plaintext;
+      container.appendChild(p);
+    } catch (err) {
+      const p = document.createElement("p");
+      p.textContent = "[Unable to decrypt this message]";
+      container.appendChild(p);
+    }
+  }
+}
+</script>
 {% endblock %}
