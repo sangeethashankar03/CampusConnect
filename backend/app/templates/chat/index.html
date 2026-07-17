@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Messages</h2>
+  <input type="number" id="peer-id" placeholder="Recipient user ID">
+  <button id="load-btn">Load conversation</button>
+  <div id="messages"></div>
+
+  <textarea id="message-text" placeholder="Type a message..." rows="3"></textarea><br>
+  <button id="send-btn">Send</button>
+</div>
+{% endblock %}
