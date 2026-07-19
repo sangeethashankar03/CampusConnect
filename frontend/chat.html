@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusConnect - Messages</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <div class="container">
+    <h1>CampusConnect</h1>
+    <nav>
+      <a href="index.html">Home</a>
+    </nav>
+
+    <div class="card">
+      <h2>Messages</h2>
+      <input type="number" id="peer-id" placeholder="Recipient user ID">
+      <button id="load-btn">Load conversation</button>
+      <div id="messages"></div>
+
+      <textarea id="message-text" placeholder="Type a message..." rows="3"></textarea><br>
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/crypto.js"></script>
+</body>
+</html>
