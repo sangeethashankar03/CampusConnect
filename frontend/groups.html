@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusConnect - Study Groups</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <div class="container">
+    <h1>CampusConnect</h1>
+    <nav>
+      <a href="index.html">Home</a> |
+      <a href="chat.html">Messages</a> |
+      <a href="files.html">Files</a>
+    </nav>
+
+    <div class="card">
+      <h2>Study Groups</h2>
+      <input type="text" id="group-name" placeholder="Group name">
+      <input type="text" id="module-code" placeholder="Module code">
+      <button id="create-group-btn">Create group</button>
+      <div id="groups-list"></div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    document.getElementById("create-group-btn").addEventListener("click", async () => {
+      const name = document.getElementById("group-name").value;
+      const module_code = document.getElementById("module-code").value;
+      if (!name) return;
+
+      try {
+        const group = await apiFetch("/groups/", {
+          method: "POST",
+          body: JSON.stringify({ name, module_code }),
+        });
+        const list = document.getElementById("groups-list");
+        const p = document.createElement("p");
+        p.textContent = `Created group: ${group.name} (id: ${group.id})`;
+        list.appendChild(p);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
+</body>
+</html>

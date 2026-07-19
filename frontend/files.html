@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusConnect - Shared Files</title>
+  <link rel="stylesheet" href="css/base.css">
+</head>
+<body>
+  <div class="container">
+    <h1>CampusConnect</h1>
+    <nav>
+      <a href="index.html">Home</a> |
+      <a href="chat.html">Messages</a> |
+      <a href="groups.html">Groups</a>
+    </nav>
+
+    <div class="card">
+      <h2>Shared Files</h2>
+      <input type="number" id="group-id" placeholder="Group ID">
+      <input type="file" id="file-input">
+      <button id="upload-btn">Upload</button>
+      <div id="files-list"></div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    document.getElementById("upload-btn").addEventListener("click", async () => {
+      const groupId = document.getElementById("group-id").value;
+      const fileInput = document.getElementById("file-input");
+      if (!groupId || !fileInput.files.length) return;
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      try {
+        await apiFetchForm(`/files/${groupId}/upload`, formData);
+        alert("File uploaded");
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
+</body>
+</html>
