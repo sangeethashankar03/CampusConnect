@@ -135,3 +135,27 @@ async function decryptMessage(payload, recipientEncryptionPrivateKey, senderSign
   );
   return new TextDecoder().decode(plaintextBuffer);
 }
+async function exportPrivateKeyPem(privateKey) {
+  const pkcs8 = await window.crypto.subtle.exportKey("pkcs8", privateKey);
+  return arrayBufferToPem(pkcs8, "PRIVATE KEY");
+}
+
+async function importEncryptionPrivateKey(pem) {
+  return window.crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(pem),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    true,
+    ["decrypt"]
+  );
+}
+
+async function importSigningPrivateKey(pem) {
+  return window.crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(pem),
+    { name: "RSA-PSS", hash: "SHA-256" },
+    true,
+    ["sign"]
+  );
+}
