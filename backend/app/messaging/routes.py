@@ -23,6 +23,8 @@ def send_message():
         nonce=data["nonce"],
         enc_aes_key=data["enc_aes_key"],
         signature=data["signature"],
+        is_file=data.get("is_file", False),
+        original_filename=data.get("original_filename"),
     )
     db.session.add(message)
     db.session.commit()
