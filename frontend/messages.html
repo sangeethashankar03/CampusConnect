@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusConnect</title>
+  <link rel="stylesheet" href="css/base.css">
+  <style>
+    .hub-header { background: #0c2d5e; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-radius: 20px 20px 0 0; }
+    .hub-header h1 { color: white; -webkit-text-fill-color: white; background: none; margin: 0; font-size: 1.4rem; }
+    .hub-body { padding: 16px; }
+    .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .search-row input { margin-bottom: 0; }
+    .group-btn { width: 44px; height: 44px; border-radius: 8px; border: 1.5px solid var(--color-border); background: white; cursor: pointer; flex-shrink: 0; font-size: 1.1rem; }
+    .conv-item { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+    .conv-item:hover { background: var(--color-primary-light); border-radius: 8px; }
+    .avatar { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem; color: white; background: var(--color-primary); }
+    .conv-info { flex: 1; min-width: 0; }
+    .conv-name { margin: 0; font-weight: 600; font-size: 0.92rem; }
+    .conv-preview { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
+    #search-results button { display: block; width: 100%; text-align: left; margin-bottom: 6px; background: white; border: 1px solid var(--color-border); }
+    #conversation-view { display: none; }
+    .conv-header { background: #0c2d5e; padding: 14px 20px; display: flex; align-items: center; gap: 12px; border-radius: 20px 20px 0 0; }
+    .conv-header i { color: white; cursor: pointer; font-size: 1.2rem; }
+    .conv-header .avatar { background: rgba(255,255,255,0.2); }
+    .conv-header-name { color: white; font-weight: 600; }
+    #messages-area { padding: 16px; display: flex; flex-direction: column; gap: 8px; min-height: 200px; max-height: 400px; overflow-y: auto; }
+    .msg-bubble { max-width: 70%; padding: 8px 14px; border-radius: 12px; font-size: 0.9rem; }
+    .msg-bubble.theirs { align-self: flex-start; background: var(--color-primary-light); }
+    .msg-bubble.mine { align-self: flex-end; background: #0c2d5e; color: white; }
+    .msg-time { display: block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 4px; }
+    .msg-bubble.mine .msg-time { color: rgba(255,255,255,0.7); }
+    .message-input-row { display: flex; align-items: center; gap: 8px; background: #fbfbfd; border: 1.5px solid var(--color-border); border-radius: 24px; padding: 8px 8px 8px 16px; margin: 16px; }
+    .message-input-row textarea { border: none; margin: 0; padding: 4px; resize: none; background: transparent; flex: 1; }
+    .icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.2rem; padding: 4px; }
+    .send-btn-circle { width: 36px; height: 36px; border-radius: 50%; background: #0c2d5e; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <div id="list-view">
+        <div class="hub-header"><h1>CampusConnect</h1></div>
+        <div class="hub-body">
+          <div class="search-row">
+            <input type="text" id="peer-search" placeholder="Search students or groups">
+            <button class="group-btn" id="groups-page-btn" title="View groups">Groups</button>
+          </div>
+          <div id="search-results"></div>
+          <div id="conversation-list"></div>
+        </div>
+      </div>
+
+      <div id="conversation-view">
+        <div class="conv-header">
+          <i id="back-btn">&#8592;</i>
+          <div class="avatar" id="conv-avatar">?</div>
+          <span class="conv-header-name" id="conv-name">Loading...</span>
+        </div>
+        <div id="messages-area"></div>
+        <div class="message-input-row">
+          <textarea id="message-text" rows="1" placeholder="Type a message..."></textarea>
+          <input type="file" id="file-input" style="display:none;">
+          <button class="icon-btn" id="attach-btn" title="Attach file">📎</button>
+          <button class="send-btn-circle" id="send-btn" title="Send"><span style="color:white;">&#10148;</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/crypto.js"></script>
+  <script>
+    let myEncryptionPrivateKey = null;
+    let mySigningPrivateKey = null;
+    let currentPeerId = null;
+    let recentConversations = JSON.parse(localStorage.getItem("recentConversations") || "[]");
+
+    async function ensureMyKeys() {
+      if (myEncryptionPrivateKey && mySigningPrivateKey) return;
+      const encPem = sessionStorage.getItem("enc_private_key");
+      const signPem = sessionStorage.getItem("sign_private_key");
+      if (!encPem || !signPem) throw new Error("No keys found for this session — please log in again.");
+      myEncryptionPrivateKey = await importEncryptionPrivateKey(encPem);
+      mySigningPrivateKey = await importSigningPrivateKey(signPem);
+    }
+
+    function renderConversationList() {
+      const container = document.getElementById("conversation-list");
+      container.innerHTML = "";
+      if (recentConversations.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.9rem; padding: 16px 4px;">Search for a student above to start a conversation.</p>';
+        return;
+      }
+      recentConversations.forEach(conv => {
+        const div = document.createElement("div");
+        div.className = "conv-item";
+        div.innerHTML = `<div class="avatar">${conv.username.slice(0,2).toUpperCase()}</div><div class="conv-info"><p class="conv-name">${conv.username}</p><p class="conv-preview">Tap to open conversation</p></div>`;
+        div.addEventListener("click", () => openConversation(conv.id, conv.username));
+        container.appendChild(div);
+      });
+    }
+
+    document.getElementById("groups-page-btn").addEventListener("click", () => { window.location.href = "groups.html"; });
+
+    let searchTimeout = null;
+    document.getElementById("peer-search").addEventListener("input", (e) => {
+      clearTimeout(searchTimeout);
+      const query = e.target.value.trim();
+      const resultsDiv = document.getElementById("search-results");
+      if (!query) { resultsDiv.innerHTML = ""; return; }
+      searchTimeout = setTimeout(async () => {
+        const results = await apiFetch(`/auth/search?q=${encodeURIComponent(query)}`);
+        resultsDiv.innerHTML = "";
+        results.forEach(user => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = user.username;
+          btn.addEventListener("click", () => {
+            document.getElementById("peer-search").value = "";
+            resultsDiv.innerHTML = "";
+            openConversation(user.id, user.username);
+          });
+          resultsDiv.appendChild(btn);
+        });
+      }, 300);
+    });
+
+    function openConversation(peerId, peerName) {
+      currentPeerId = peerId;
+      if (!recentConversations.find(c => c.id === peerId)) {
+        recentConversations.unshift({ id: peerId, username: peerName });
+        localStorage.setItem("recentConversations", JSON.stringify(recentConversations));
+      }
+      document.getElementById("list-view").style.display = "none";
+      document.getElementById("conversation-view").style.display = "block";
+      document.getElementById("conv-name").textContent = peerName;
+      document.getElementById("conv-avatar").textContent = peerName.slice(0,2).toUpperCase();
+      loadConversation();
+    }
+
+    document.getElementById("back-btn").addEventListener("click", () => {
+      document.getElementById("conversation-view").style.display = "none";
+      document.getElementById("list-view").style.display = "block";
+      renderConversationList();
+    });
+
+    function formatTimestamp(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    }
+
+    async function loadConversation() {
+      if (!currentPeerId) return;
+      await ensureMyKeys();
+      const senderKeys = await apiFetch(`/keys/${currentPeerId}`);
+      const messages = await apiFetch(`/messages/${currentPeerId}`);
+      const myId = (await apiFetch("/auth/me")).id;
+      const container = document.getElementById("messages-area");
+      container.innerHTML = "";
+
+      for (const msg of messages) {
+        const bubble = document.createElement("div");
+        bubble.className = "msg-bubble " + (msg.sender_id === myId ? "mine" : "theirs");
+        const textEl = document.createElement("span");
+        const timeEl = document.createElement("span");
+        timeEl.className = "msg-time";
+        timeEl.textContent = formatTimestamp(msg.created_at);
+
+        try {
+          const rawBytes = await decryptMessage(msg, myEncryptionPrivateKey, senderKeys.signing_key);
+          if (msg.is_file) {
+            const blob = new Blob([rawBytes]);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = msg.original_filename;
+            link.textContent = "📎 " + msg.original_filename;
+            link.style.color = "inherit";
+            textEl.appendChild(link);
+          } else {
+            textEl.textContent = new TextDecoder().decode(rawBytes);
+          }
+        } catch (err) {
+          textEl.textContent = "[Unable to decrypt this message]";
+        }
+
+        bubble.appendChild(textEl);
+        bubble.appendChild(timeEl);
+        container.appendChild(bubble);
+      }
+      container.scrollTop = container.scrollHeight;
+    }
+
+    document.getElementById("send-btn").addEventListener("click", async () => {
+      const text = document.getElementById("message-text").value.trim();
+      if (!currentPeerId || !text) return;
+      await ensureMyKeys();
+      const recipientKeys = await apiFetch(`/keys/${currentPeerId}`);
+      const payload = await encryptMessage(text, recipientKeys.encryption_key, mySigningPrivateKey);
+      payload.receiver_id = currentPeerId;
+      await apiFetch("/messages/", { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("message-text").value = "";
+      loadConversation();
+    });
+
+    document.getElementById("attach-btn").addEventListener("click", () => { document.getElementById("file-input").click(); });
+
+    document.getElementById("file-input").addEventListener("change", async (e) => {
+      if (!currentPeerId || !e.target.files.length) return;
+      const file = e.target.files[0];
+      await ensureMyKeys();
+      const recipientKeys = await apiFetch(`/keys/${currentPeerId}`);
+      const payload = await encryptFile(file, recipientKeys.encryption_key, mySigningPrivateKey);
+      payload.receiver_id = currentPeerId;
+      payload.is_file = true;
+      payload.original_filename = file.name;
+      await apiFetch("/messages/", { method: "POST", body: JSON.stringify(payload) });
+      e.target.value = "";
+      loadConversation();
+    });
+
+    renderConversationList();
+  </script>
+</body>
+</html>
