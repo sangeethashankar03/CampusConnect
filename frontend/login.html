@@ -50,6 +50,14 @@
         const encryptionPublicPem = await exportPublicKeyPem(encPair.publicKey);
         const signingPublicPem = await exportPublicKeyPem(signPair.publicKey);
 
+        // Save private keys in sessionStorage so chat.html can reuse the same
+        // key pair. Cleared automatically when the tab/browser session closes —
+        // private keys are never sent to the server or stored permanently.
+        const encryptionPrivatePem = await exportPrivateKeyPem(encPair.privateKey);
+        const signingPrivatePem = await exportPrivateKeyPem(signPair.privateKey);
+        sessionStorage.setItem("enc_private_key", encryptionPrivatePem);
+        sessionStorage.setItem("sign_private_key", signingPrivatePem);
+
         await apiFetch("/keys/register", {
           method: "POST",
           body: JSON.stringify({
