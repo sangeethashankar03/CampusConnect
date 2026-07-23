@@ -14,6 +14,9 @@ class Message(db.Model):
     enc_aes_key = db.Column(db.Text, nullable=False)
     signature = db.Column(db.Text, nullable=False)
 
+    is_file = db.Column(db.Boolean, default=False, nullable=False)
+    original_filename = db.Column(db.String(255), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -25,5 +28,7 @@ class Message(db.Model):
             "nonce": self.nonce,
             "enc_aes_key": self.enc_aes_key,
             "signature": self.signature,
+            "is_file": self.is_file,
+            "original_filename": self.original_filename,
             "created_at": self.created_at.isoformat(),
         }
