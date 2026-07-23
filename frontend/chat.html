@@ -9,13 +9,20 @@
   <div class="container">
     <h1>CampusConnect</h1>
     <nav>
-      <a href="index.html">Home</a>
+      <a href="chat.html">Messages</a> |
+      <a href="groups.html">Groups</a> |
+      <a href="files.html">Files</a>
     </nav>
 
     <div class="card">
       <h2>Messages</h2>
-      <input type="number" id="peer-id" placeholder="Recipient user ID">
-      <button id="load-btn">Load conversation</button>
+
+      <label for="peer-search">Message a student</label>
+      <input type="text" id="peer-search" placeholder="Type a username...">
+      <div id="search-results" style="margin-bottom: 16px;"></div>
+      <input type="hidden" id="peer-id">
+      <p id="chatting-with" style="font-size: 0.9rem; color: var(--color-text-muted);"></p>
+
       <div id="messages"></div>
 
       <textarea id="message-text" placeholder="Type a message..." rows="3"></textarea><br>
@@ -43,6 +50,38 @@
       mySigningPrivateKey = await importSigningPrivateKey(signPem);
     }
 
+    let searchTimeout = null;
+    document.getElementById("peer-search").addEventListener("input", (e) => {
+      clearTimeout(searchTimeout);
+      const query = e.target.value.trim();
+      const resultsDiv = document.getElementById("search-results");
+
+      if (!query) {
+        resultsDiv.innerHTML = "";
+        return;
+      }
+
+      searchTimeout = setTimeout(async () => {
+        const results = await apiFetch(`/auth/search?q=${encodeURIComponent(query)}`);
+        resultsDiv.innerHTML = "";
+        results.forEach(user => {
+          const btn = document.createElement("button");
+          btn.textContent = user.username;
+          btn.type = "button";
+          btn.style.marginRight = "8px";
+          btn.style.marginBottom = "8px";
+          btn.addEventListener("click", () => {
+            document.getElementById("peer-id").value = user.id;
+            document.getElementById("peer-search").value = "";
+            document.getElementById("chatting-with").textContent = `Chatting with ${user.username}`;
+            resultsDiv.innerHTML = "";
+            loadConversation();
+          });
+          resultsDiv.appendChild(btn);
+        });
+      }, 300);
+    });
+
     document.getElementById("send-btn").addEventListener("click", async () => {
       const peerId = document.getElementById("peer-id").value;
       const text = document.getElementById("message-text").value;
@@ -63,7 +102,15 @@
       loadConversation();
     });
 
-    document.getElementById("load-btn").addEventListener("click", loadConversation);
+    function formatTimestamp(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
 
     async function loadConversation() {
       const peerId = document.getElementById("peer-id").value;
@@ -76,20 +123,29 @@
       container.innerHTML = "";
 
       for (const msg of messages) {
+        const wrapper = document.createElement("div");
+        const p = document.createElement("p");
+        const time = document.createElement("span");
+        time.style.display = "block";
+        time.style.fontSize = "0.75rem";
+        time.style.color = "var(--color-text-muted)";
+        time.style.marginTop = "4px";
+        time.textContent = formatTimestamp(msg.created_at);
+
         try {
           const plaintext = await decryptMessage(
             msg,
             myEncryptionPrivateKey,
             senderKeys.signing_key
           );
-          const p = document.createElement("p");
           p.textContent = plaintext;
-          container.appendChild(p);
         } catch (err) {
-          const p = document.createElement("p");
           p.textContent = "[Unable to decrypt this message]";
-          container.appendChild(p);
         }
+
+        wrapper.appendChild(p);
+        wrapper.appendChild(time);
+        container.appendChild(wrapper);
       }
     }
   </script>
