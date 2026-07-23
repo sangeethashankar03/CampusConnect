@@ -26,12 +26,21 @@
   <script src="js/api.js"></script>
   <script src="js/crypto.js"></script>
   <script>
-    let myEncryptionKeyPair = null;
-    let mySigningKeyPair = null;
+    let myEncryptionPrivateKey = null;
+    let mySigningPrivateKey = null;
 
     async function ensureMyKeys() {
-      if (!myEncryptionKeyPair) myEncryptionKeyPair = await generateEncryptionKeyPair();
-      if (!mySigningKeyPair) mySigningKeyPair = await generateSigningKeyPair();
+      if (myEncryptionPrivateKey && mySigningPrivateKey) return;
+
+      const encPem = sessionStorage.getItem("enc_private_key");
+      const signPem = sessionStorage.getItem("sign_private_key");
+
+      if (!encPem || !signPem) {
+        throw new Error("No keys found for this session — please log in again.");
+      }
+
+      myEncryptionPrivateKey = await importEncryptionPrivateKey(encPem);
+      mySigningPrivateKey = await importSigningPrivateKey(signPem);
     }
 
     document.getElementById("send-btn").addEventListener("click", async () => {
@@ -45,7 +54,7 @@
       const payload = await encryptMessage(
         text,
         recipientKeys.encryption_key,
-        mySigningKeyPair.privateKey
+        mySigningPrivateKey
       );
       payload.receiver_id = parseInt(peerId, 10);
 
@@ -70,7 +79,7 @@
         try {
           const plaintext = await decryptMessage(
             msg,
-            myEncryptionKeyPair.privateKey,
+            myEncryptionPrivateKey,
             senderKeys.signing_key
           );
           const p = document.createElement("p");

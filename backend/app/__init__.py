@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 
 from app.config import Config
 from app.extensions import db, migrate, jwt, bcrypt
@@ -30,5 +30,9 @@ def create_app(config_class=Config):
     app.register_blueprint(messaging_bp, url_prefix="/api/messages")
     app.register_blueprint(groups_bp, url_prefix="/api/groups")
     app.register_blueprint(files_bp, url_prefix="/api/files")
+
+    @app.route("/")
+    def root():
+        return send_from_directory(app.static_folder, "login.html")
 
     return app
