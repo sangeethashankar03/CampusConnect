@@ -133,7 +133,7 @@ async function decryptMessage(payload, recipientEncryptionPrivateKey, senderSign
     aesKey,
     ciphertext
   );
-  return new TextDecoder().decode(plaintextBuffer);
+  return plaintextBuffer;
 }
 async function exportPrivateKeyPem(privateKey) {
   const pkcs8 = await window.crypto.subtle.exportKey("pkcs8", privateKey);
@@ -158,4 +158,36 @@ async function importSigningPrivateKey(pem) {
     true,
     ["sign"]
   );
+}
+async function encryptFile(file, recipientEncryptionKeyPem, senderSigningPrivateKey) {
+  const arrayBuffer = await file.arrayBuffer();
+  const aesKey = await generateAesKey();
+  const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    aesKey,
+    arrayBuffer
+  );
+
+  const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+  const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
+  const encAesKey = await window.crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    recipientEncryptionKey,
+    rawAesKey
+  );
+
+  const signature = await window.crypto.subtle.sign(
+    { name: "RSA-PSS", saltLength: 32 },
+    senderSigningPrivateKey,
+    ciphertext
+  );
+
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    nonce: arrayBufferToBase64(nonce),
+    enc_aes_key: arrayBufferToBase64(encAesKey),
+    signature: arrayBufferToBase64(signature),
+  };
 }
