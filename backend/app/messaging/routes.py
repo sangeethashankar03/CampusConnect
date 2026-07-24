@@ -22,6 +22,7 @@ def send_message():
         ciphertext=data["ciphertext"],
         nonce=data["nonce"],
         enc_aes_key=data["enc_aes_key"],
+        enc_aes_key_sender=data.get("enc_aes_key_sender"),
         signature=data["signature"],
         is_file=data.get("is_file", False),
         original_filename=data.get("original_filename"),
