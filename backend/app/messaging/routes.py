@@ -45,3 +45,75 @@ def get_conversation(peer_id):
         .all()
     )
     return jsonify([m.to_dict() for m in messages]), 200
+
+from app.models.conversation import Conversation
+
+
+@messaging_bp.route("/conversations/request", methods=["POST"])
+@jwt_required()
+def request_conversation():
+    data = request.get_json(silent=True) or {}
+    peer_id = data.get("peer_id")
+    if not peer_id:
+        return jsonify({"error": "peer_id is required"}), 400
+
+    user_id = int(get_jwt_identity())
+    existing = Conversation.query.filter(
+        ((Conversation.creator_id == user_id) & (Conversation.joiner_id == peer_id))
+        | ((Conversation.creator_id == peer_id) & (Conversation.joiner_id == user_id))
+    ).first()
+    if existing:
+        return jsonify({"error": "A request already exists with this user", "status": existing.status}), 409
+
+    conversation = Conversation(creator_id=user_id, joiner_id=peer_id, status="pending")
+    db.session.add(conversation)
+    db.session.commit()
+    return jsonify({"conversation_id": conversation.id, "status": "pending"}), 201
+
+
+@messaging_bp.route("/conversations/pending", methods=["GET"])
+@jwt_required()
+def list_pending_requests():
+    from app.models.user import User
+    user_id = int(get_jwt_identity())
+    pending = Conversation.query.filter_by(joiner_id=user_id, status="pending").all()
+    results = []
+    for conv in pending:
+        creator = User.query.get(conv.creator_id)
+        results.append({"conversation_id": conv.id, "from_username": creator.username, "from_id": creator.id})
+    return jsonify(results), 200
+
+
+@messaging_bp.route("/conversations/sent", methods=["GET"])
+@jwt_required()
+def list_sent_requests():
+    from app.models.user import User
+    user_id = int(get_jwt_identity())
+    sent = Conversation.query.filter_by(creator_id=user_id).all()
+    results = []
+    for conv in sent:
+        joiner = User.query.get(conv.joiner_id)
+        results.append({"conversation_id": conv.id, "to_username": joiner.username, "status": conv.status})
+    return jsonify(results), 200
+
+
+@messaging_bp.route("/conversations/<int:conversation_id>/accept", methods=["POST"])
+@jwt_required()
+def accept_conversation(conversation_id):
+    conversation = Conversation.query.get(conversation_id)
+    if not conversation or conversation.joiner_id != int(get_jwt_identity()):
+        return jsonify({"error": "Request not found"}), 404
+    conversation.status = "accepted"
+    db.session.commit()
+    return jsonify({"status": "accepted", "peer_id": conversation.creator_id}), 200
+
+
+@messaging_bp.route("/conversations/<int:conversation_id>/reject", methods=["POST"])
+@jwt_required()
+def reject_conversation(conversation_id):
+    conversation = Conversation.query.get(conversation_id)
+    if not conversation or conversation.joiner_id != int(get_jwt_identity()):
+        return jsonify({"error": "Request not found"}), 404
+    conversation.status = "rejected"
+    db.session.commit()
+    return jsonify({"status": "rejected"}), 200
