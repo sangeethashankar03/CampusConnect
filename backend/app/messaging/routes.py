@@ -46,7 +46,7 @@ def get_conversation(peer_id):
     )
     return jsonify([m.to_dict() for m in messages]), 200
 
-from app.models.conversation import Conversation
+from app.models.conversations import Conversation
 
 
 @messaging_bp.route("/conversations/request", methods=["POST"])
