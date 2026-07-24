@@ -191,3 +191,65 @@ async function encryptFile(file, recipientEncryptionKeyPem, senderSigningPrivate
     signature: arrayBufferToBase64(signature),
   };
 }
+async function encryptMessageDual(plaintext, recipientEncryptionKeyPem, senderEncryptionKeyPem, senderSigningPrivateKey) {
+  const aesKey = await generateAesKey();
+  const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+
+  const encodedText = new TextEncoder().encode(plaintext);
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    aesKey,
+    encodedText
+  );
+
+  const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+
+  const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
+  const encAesKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientEncryptionKey, rawAesKey);
+
+  const senderEncryptionKey = await importEncryptionPublicKey(senderEncryptionKeyPem);
+  const encAesKeySender = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, senderEncryptionKey, rawAesKey);
+
+  const signature = await window.crypto.subtle.sign(
+    { name: "RSA-PSS", saltLength: 32 },
+    senderSigningPrivateKey,
+    ciphertext
+  );
+
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    nonce: arrayBufferToBase64(nonce),
+    enc_aes_key: arrayBufferToBase64(encAesKey),
+    enc_aes_key_sender: arrayBufferToBase64(encAesKeySender),
+    signature: arrayBufferToBase64(signature),
+  };
+}
+
+async function encryptFileDual(file, recipientEncryptionKeyPem, senderEncryptionKeyPem, senderSigningPrivateKey) {
+  const arrayBuffer = await file.arrayBuffer();
+  const aesKey = await generateAesKey();
+  const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+
+  const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, arrayBuffer);
+  const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+
+  const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
+  const encAesKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientEncryptionKey, rawAesKey);
+
+  const senderEncryptionKey = await importEncryptionPublicKey(senderEncryptionKeyPem);
+  const encAesKeySender = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, senderEncryptionKey, rawAesKey);
+
+  const signature = await window.crypto.subtle.sign(
+    { name: "RSA-PSS", saltLength: 32 },
+    senderSigningPrivateKey,
+    ciphertext
+  );
+
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    nonce: arrayBufferToBase64(nonce),
+    enc_aes_key: arrayBufferToBase64(encAesKey),
+    enc_aes_key_sender: arrayBufferToBase64(encAesKeySender),
+    signature: arrayBufferToBase64(signature),
+  };
+}
