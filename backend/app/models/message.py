@@ -12,6 +12,7 @@ class Message(db.Model):
     ciphertext = db.Column(db.Text, nullable=False)
     nonce = db.Column(db.String(64), nullable=False)
     enc_aes_key = db.Column(db.Text, nullable=False)
+    enc_aes_key_sender = db.Column(db.Text, nullable=True)
     signature = db.Column(db.Text, nullable=False)
 
     is_file = db.Column(db.Boolean, default=False, nullable=False)
@@ -27,6 +28,7 @@ class Message(db.Model):
             "ciphertext": self.ciphertext,
             "nonce": self.nonce,
             "enc_aes_key": self.enc_aes_key,
+            "enc_aes_key_sender": self.enc_aes_key_sender,
             "signature": self.signature,
             "is_file": self.is_file,
             "original_filename": self.original_filename,
