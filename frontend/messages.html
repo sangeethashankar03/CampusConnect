@@ -18,6 +18,14 @@
     .conv-name { margin: 0; font-weight: 600; font-size: 0.92rem; color: var(--color-text); }
     .conv-preview { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
     #search-results button { display: block; width: 100%; text-align: left; margin-bottom: 6px; background: white; border: 1px solid var(--color-border); color: var(--color-text); }
+    .section-title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--color-text-muted); margin: 16px 0 8px; }
+    .request-item { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--color-border); }
+    .request-item .name { flex: 1; font-size: 0.9rem; }
+    .request-item button { font-size: 0.8rem; padding: 6px 12px; }
+    .status-badge { font-size: 0.75rem; padding: 2px 10px; border-radius: 12px; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-accepted { background: #d1fae5; color: #065f46; }
+    .status-rejected { background: #fee2e2; color: #991b1b; }
     #conversation-view { display: none; }
     .conv-header { background: #0c2d5e; padding: 14px 20px; display: flex; align-items: center; gap: 12px; border-radius: 20px 20px 0 0; }
     .conv-header i { color: white; cursor: pointer; font-size: 1.2rem; }
@@ -45,10 +53,18 @@
         <div class="hub-header"><h1>CampusConnect</h1></div>
         <div class="hub-body">
           <div class="search-row">
-            <input type="text" id="peer-search" placeholder="Search students or groups">
+            <input type="text" id="peer-search" placeholder="Search students to send a request">
             <button class="group-btn" id="groups-page-btn" title="View groups">Groups</button>
           </div>
           <div id="search-results"></div>
+
+          <div class="section-title">Requests waiting for your response</div>
+          <div id="pending-requests"></div>
+
+          <div class="section-title">Requests you've sent</div>
+          <div id="sent-requests"></div>
+
+          <div class="section-title">Your conversations</div>
           <div id="conversation-list"></div>
         </div>
       </div>
@@ -78,7 +94,7 @@
     let myEncryptionPublicPem = null;
     let currentPeerId = null;
     let pollTimer = null;
-    let recentConversations = JSON.parse(localStorage.getItem("recentConversations") || "[]");
+    let acceptedPeers = JSON.parse(localStorage.getItem("acceptedPeers") || "[]");
 
     async function ensureMyKeys() {
       if (myEncryptionPrivateKey && mySigningPrivateKey && myEncryptionPublicPem) return;
@@ -92,24 +108,9 @@
       myEncryptionPublicPem = myKeys.encryption_key;
     }
 
-    function renderConversationList() {
-      const container = document.getElementById("conversation-list");
-      container.innerHTML = "";
-      if (recentConversations.length === 0) {
-        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.9rem; padding: 16px 4px;">Search for a student above to start a conversation.</p>';
-        return;
-      }
-      recentConversations.forEach(conv => {
-        const div = document.createElement("div");
-        div.className = "conv-item";
-        div.innerHTML = `<div class="avatar">${conv.username.slice(0,2).toUpperCase()}</div><div class="conv-info"><p class="conv-name">${conv.username}</p><p class="conv-preview">Tap to open conversation</p></div>`;
-        div.addEventListener("click", () => openConversation(conv.id, conv.username));
-        container.appendChild(div);
-      });
-    }
-
     document.getElementById("groups-page-btn").addEventListener("click", () => { window.location.href = "groups.html"; });
 
+    // --- Search and send request ---
     let searchTimeout = null;
     document.getElementById("peer-search").addEventListener("input", (e) => {
       clearTimeout(searchTimeout);
@@ -122,23 +123,102 @@
         results.forEach(user => {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.textContent = user.username;
-          btn.addEventListener("click", () => {
+          btn.textContent = `Send request to ${user.username}`;
+          btn.addEventListener("click", async () => {
             document.getElementById("peer-search").value = "";
             resultsDiv.innerHTML = "";
-            openConversation(user.id, user.username);
+            try {
+              await apiFetch("/messages/conversations/request", {
+                method: "POST",
+                body: JSON.stringify({ peer_id: user.id }),
+              });
+              alert(`Connection request sent to ${user.username}`);
+              loadSentRequests();
+            } catch (err) {
+              alert(err.message);
+            }
           });
           resultsDiv.appendChild(btn);
         });
       }, 300);
     });
 
+    // --- Pending requests (need my response) ---
+    async function loadPendingRequests() {
+      const pending = await apiFetch("/messages/conversations/pending");
+      const container = document.getElementById("pending-requests");
+      container.innerHTML = "";
+      if (pending.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.85rem; padding: 4px;">No pending requests.</p>';
+        return;
+      }
+      pending.forEach(req => {
+        const div = document.createElement("div");
+        div.className = "request-item";
+        div.innerHTML = `<span class="name">${req.from_username} wants to connect</span>`;
+
+        const acceptBtn = document.createElement("button");
+        acceptBtn.textContent = "Accept";
+        acceptBtn.addEventListener("click", async () => {
+          await apiFetch(`/messages/conversations/${req.conversation_id}/accept`, { method: "POST" });
+          if (!acceptedPeers.find(p => p.id === req.from_id)) {
+            acceptedPeers.unshift({ id: req.from_id, username: req.from_username });
+            localStorage.setItem("acceptedPeers", JSON.stringify(acceptedPeers));
+          }
+          loadPendingRequests();
+          renderConversationList();
+        });
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.textContent = "Reject";
+        rejectBtn.addEventListener("click", async () => {
+          await apiFetch(`/messages/conversations/${req.conversation_id}/reject`, { method: "POST" });
+          loadPendingRequests();
+        });
+
+        div.appendChild(acceptBtn);
+        div.appendChild(rejectBtn);
+        container.appendChild(div);
+      });
+    }
+
+    // --- Sent requests (status tracking) ---
+    async function loadSentRequests() {
+      const sent = await apiFetch("/messages/conversations/sent");
+      const container = document.getElementById("sent-requests");
+      container.innerHTML = "";
+      if (sent.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.85rem; padding: 4px;">No requests sent yet.</p>';
+        return;
+      }
+      sent.forEach(req => {
+        const div = document.createElement("div");
+        div.className = "request-item";
+        const badgeClass = "status-" + req.status;
+        div.innerHTML = `<span class="name">${req.to_username}</span><span class="status-badge ${badgeClass}">${req.status}</span>`;
+        container.appendChild(div);
+      });
+    }
+
+    // --- Conversation list (accepted connections only) ---
+    function renderConversationList() {
+      const container = document.getElementById("conversation-list");
+      container.innerHTML = "";
+      if (acceptedPeers.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.9rem; padding: 16px 4px;">No conversations yet. Send a request above to get started.</p>';
+        return;
+      }
+      acceptedPeers.forEach(conv => {
+        const div = document.createElement("div");
+        div.className = "conv-item";
+        div.innerHTML = `<div class="avatar">${conv.username.slice(0,2).toUpperCase()}</div><div class="conv-info"><p class="conv-name">${conv.username}</p><p class="conv-preview">Tap to open conversation</p></div>`;
+        div.addEventListener("click", () => openConversation(conv.id, conv.username));
+        container.appendChild(div);
+      });
+    }
+
     function openConversation(peerId, peerName) {
       currentPeerId = peerId;
-      if (!recentConversations.find(c => c.id === peerId)) {
-        recentConversations.unshift({ id: peerId, username: peerName });
-        localStorage.setItem("recentConversations", JSON.stringify(recentConversations));
-      }
       document.getElementById("list-view").style.display = "none";
       document.getElementById("conversation-view").style.display = "block";
       document.getElementById("conv-name").textContent = peerName;
@@ -153,6 +233,8 @@
       if (pollTimer) clearInterval(pollTimer);
       document.getElementById("conversation-view").style.display = "none";
       document.getElementById("list-view").style.display = "block";
+      loadPendingRequests();
+      loadSentRequests();
       renderConversationList();
     });
 
@@ -234,6 +316,8 @@
       loadConversation();
     });
 
+    loadPendingRequests();
+    loadSentRequests();
     renderConversationList();
   </script>
 </body>
