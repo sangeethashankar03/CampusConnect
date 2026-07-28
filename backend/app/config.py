@@ -11,9 +11,22 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-change-me")
-    JWT_ACCESS_TOKEN_EXPIRES = 3600  
-    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  
+    JWT_ACCESS_TOKEN_EXPIRES = 3600
+    MAX_CONTENT_LENGTH = 15 * 1024 * 1024
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "uploads")
+
+    LOGIN_MAX_ATTEMPTS = 5
+    LOGIN_LOCKOUT_SECONDS = 300
+
+    # Gmail SMTP settings for real email verification codes.
+    # MAIL_PASSWORD must be a 16-character Gmail "app password", NOT your
+    # real Gmail password -- Google blocks plain-password SMTP entirely.
+    MAIL_SERVER = "smtp.gmail.com"
+    MAIL_PORT = 587
+    MAIL_USE_TLS = True
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    VERIFICATION_CODE_EXPIRY_SECONDS = 600  # 10 minutes
 
 
 class TestConfig(Config):

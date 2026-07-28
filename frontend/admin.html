@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampusConnect - Admin</title>
+  <link rel="stylesheet" href="css/base.css">
+  <style>
+    table { width:100%; border-collapse: collapse; font-size:0.86rem; }
+    th { text-align:left; padding:10px 12px; color: var(--color-text-faint); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; border-bottom: 1.5px solid var(--color-border); }
+    td { text-align:left; padding:12px; border-bottom:1px solid var(--color-border); }
+    tr:last-child td { border-bottom: none; }
+    .cell-user { display: flex; align-items: center; gap: 10px; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <div id="app-nav-mount"></div>
+    <main class="app-main">
+      <div class="app-content wide-content">
+        <div class="page-header">
+          <h2>Admin — user roster</h2>
+          <p class="sub">Server-enforced: only accounts with role <code>admin</code> can load this data — this page has no special access itself, it calls the same API anyone could try.</p>
+        </div>
+        <div class="panel">
+          <p id="admin-status" class="status-line"></p>
+          <table id="user-table" style="display:none;">
+            <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Verified</th><th>Joined</th></tr></thead>
+            <tbody id="user-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/app-shell.js"></script>
+  <script>
+    renderAppShell("admin");
+    (async () => {
+      const status = document.getElementById("admin-status");
+      try {
+        const users = await apiFetch("/admin/users");
+        status.textContent = "";
+        const tbody = document.getElementById("user-rows");
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td><div class="cell-user"><div class="avatar" style="width:30px;height:30px;font-size:0.68rem;">${u.username.slice(0,2).toUpperCase()}</div>${u.username}</div></td>
+            <td>${u.email}</td>
+            <td><span class="badge ${u.role === 'admin' ? 'badge-secure' : 'badge-muted'}">${u.role}</span></td>
+            <td>${u.is_verified ? '<span class="badge badge-secure">Verified</span>' : '<span class="badge badge-danger">Unverified</span>'}</td>
+            <td>${parseServerTimestamp(u.created_at).toLocaleDateString()}</td>
+          </tr>`).join("");
+        document.getElementById("user-table").style.display = "table";
+      } catch (err) {
+        status.innerHTML = `<span class="badge badge-danger">Access denied</span> &nbsp; ${err.message} (expected unless your account's role is 'admin')`;
+      }
+    })();
+  </script>
+</body>
+</html>

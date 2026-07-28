@@ -3,9 +3,21 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.message import Message
+from app.models.conversations import Conversation
+from app.models.user import User
 from app.messaging.services import validate_encrypted_payload
 
 messaging_bp = Blueprint("messaging", __name__)
+
+
+def _are_connected(user_id, peer_id):
+    return Conversation.query.filter(
+        Conversation.status == "accepted",
+        db.or_(
+            db.and_(Conversation.creator_id == user_id, Conversation.joiner_id == peer_id),
+            db.and_(Conversation.creator_id == peer_id, Conversation.joiner_id == user_id),
+        ),
+    ).first() is not None
 
 
 @messaging_bp.route("/", methods=["POST"])
@@ -16,15 +28,22 @@ def send_message():
     if not ok:
         return jsonify({"error": error}), 400
 
+    user_id = int(get_jwt_identity())
+    # Added: this used to be missing entirely -- any authenticated user
+    # could message any other user ID regardless of the request/accept
+    # flow, making that UI purely cosmetic. Now actually enforced.
+    if not _are_connected(user_id, data["receiver_id"]):
+        return jsonify({"error": "You can only message users who have accepted a connection request"}), 403
+
     message = Message(
-        sender_id=int(get_jwt_identity()),
+        sender_id=user_id,
         receiver_id=data["receiver_id"],
         ciphertext=data["ciphertext"],
         nonce=data["nonce"],
         enc_aes_key=data["enc_aes_key"],
         enc_aes_key_sender=data.get("enc_aes_key_sender"),
         signature=data["signature"],
-        is_file=data.get("is_file", False),
+        is_file=bool(data.get("is_file")),
         original_filename=data.get("original_filename"),
     )
     db.session.add(message)
@@ -36,6 +55,8 @@ def send_message():
 @jwt_required()
 def get_conversation(peer_id):
     user_id = int(get_jwt_identity())
+    if not _are_connected(user_id, peer_id):
+        return jsonify({"error": "No accepted conversation with this user"}), 403
     messages = (
         Message.query.filter(
             ((Message.sender_id == user_id) & (Message.receiver_id == peer_id))
@@ -45,8 +66,6 @@ def get_conversation(peer_id):
         .all()
     )
     return jsonify([m.to_dict() for m in messages]), 200
-
-from app.models.conversations import Conversation
 
 
 @messaging_bp.route("/conversations/request", methods=["POST"])
@@ -58,6 +77,9 @@ def request_conversation():
         return jsonify({"error": "peer_id is required"}), 400
 
     user_id = int(get_jwt_identity())
+    if int(peer_id) == user_id:
+        return jsonify({"error": "You cannot connect with yourself"}), 400
+
     existing = Conversation.query.filter(
         ((Conversation.creator_id == user_id) & (Conversation.joiner_id == peer_id))
         | ((Conversation.creator_id == peer_id) & (Conversation.joiner_id == user_id))
@@ -74,7 +96,6 @@ def request_conversation():
 @messaging_bp.route("/conversations/pending", methods=["GET"])
 @jwt_required()
 def list_pending_requests():
-    from app.models.user import User
     user_id = int(get_jwt_identity())
     pending = Conversation.query.filter_by(joiner_id=user_id, status="pending").all()
     results = []
@@ -87,13 +108,33 @@ def list_pending_requests():
 @messaging_bp.route("/conversations/sent", methods=["GET"])
 @jwt_required()
 def list_sent_requests():
-    from app.models.user import User
     user_id = int(get_jwt_identity())
     sent = Conversation.query.filter_by(creator_id=user_id).all()
     results = []
     for conv in sent:
         joiner = User.query.get(conv.joiner_id)
         results.append({"conversation_id": conv.id, "to_username": joiner.username, "status": conv.status})
+    return jsonify(results), 200
+
+
+@messaging_bp.route("/conversations/accepted", methods=["GET"])
+@jwt_required()
+def list_accepted_conversations():
+    """
+    Added: the original build kept the conversation list purely in
+    localStorage on the client, so it silently vanished on a new device or
+    browser. This makes the backend the source of truth instead.
+    """
+    user_id = int(get_jwt_identity())
+    accepted = Conversation.query.filter(
+        Conversation.status == "accepted",
+        db.or_(Conversation.creator_id == user_id, Conversation.joiner_id == user_id),
+    ).all()
+    results = []
+    for conv in accepted:
+        peer_id = conv.joiner_id if conv.creator_id == user_id else conv.creator_id
+        peer = User.query.get(peer_id)
+        results.append({"conversation_id": conv.id, "peer_id": peer.id, "peer_username": peer.username})
     return jsonify(results), 200
 
 

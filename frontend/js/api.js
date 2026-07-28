@@ -1,3 +1,11 @@
+function parseServerTimestamp(ts) {
+  // Handles both plain "YYYY-MM-DD HH:MM:SS" style timestamps and proper
+  // ISO 8601 strings with "T" and a timezone offset -- different backends
+  // format these differently, so don't assume just one.
+  if (ts.includes("T")) return new Date(ts);
+  return new Date(ts.replace(" ", "T") + "Z");
+}
+
 const API_BASE = "/api";
 
 function getToken() {

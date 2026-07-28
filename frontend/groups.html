@@ -4,45 +4,172 @@
   <meta charset="UTF-8">
   <title>CampusConnect - Study Groups</title>
   <link rel="stylesheet" href="css/base.css">
+  <style>
+    .group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+    .group-card { border: 1.5px solid var(--color-border); border-radius: var(--radius); padding: 18px; background: #fff; }
+    .group-card:hover { box-shadow: var(--shadow); border-color: #d7d9ee; }
+    .group-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+    .group-card h3 { font-family: var(--font-display); font-size: 1rem; margin: 0 0 4px; }
+    .group-card .module { font-size: 0.78rem; color: var(--color-text-faint); font-family: var(--font-mono); }
+    .group-card .id-line { font-size: 0.72rem; color: var(--color-text-faint); margin-top: 8px; }
+    .group-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+    .open-link { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 0.83rem; color: var(--color-primary); text-decoration: none; }
+    .open-link:hover { text-decoration: underline; }
+    .invite-row { display: flex; gap: 6px; margin-top: 10px; }
+    .invite-row input { margin-bottom: 0; font-size: 0.8rem; padding: 8px 10px; }
+    .invite-row button { font-size: 0.76rem; padding: 8px 12px; }
+    .invite-toggle { font-size: 0.76rem; padding: 5px 10px; background: #fff; color: var(--color-primary); border: 1.5px solid var(--color-border); }
+    .invite-toggle:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
+    .invite-status { font-size: 0.76rem; margin-top: 6px; }
+    .request-item { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--color-border); }
+    .request-item:last-child { border-bottom: none; }
+    .request-item .name { flex: 1; font-size: 0.87rem; }
+    .request-item .name b { font-weight: 700; }
+    .request-item button { font-size: 0.78rem; padding: 6px 13px; }
+    .request-item button.reject { background: #fff; color: var(--color-danger); border: 1px solid var(--color-border); }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>CampusConnect</h1>
-    <nav>
-  <a href="messages.html">Messages</a> |
-  <a href="groups.html">Groups</a> |
-  <a href="files.html">Files</a>
-</nav>
+  <div class="app-layout">
+    <div id="app-nav-mount"></div>
+    <main class="app-main">
+      <div class="app-content wide-content">
+        <div class="page-header">
+          <h2>Study Groups</h2>
+          <p class="sub">Create a group and invite classmates by username — they must accept before they can see anything inside it.</p>
+        </div>
 
-    <div class="card">
-      <h2>Study Groups</h2>
-      <input type="text" id="group-name" placeholder="Group name">
-      <input type="text" id="module-code" placeholder="Module code">
-      <button id="create-group-btn">Create group</button>
-      <div id="groups-list"></div>
-    </div>
+        <div class="panel">
+          <div class="panel-title">Create a group</div>
+          <div class="field-row">
+            <div class="field">
+              <label for="group-name">Group name</label>
+              <input type="text" id="group-name" placeholder="e.g. CS Security Project Team">
+            </div>
+            <div class="field" style="max-width:180px;">
+              <label for="module-code">Module code</label>
+              <input type="text" id="module-code" placeholder="B9IS103">
+            </div>
+            <button id="create-btn">Create</button>
+          </div>
+          <p id="group-status" class="status-line"></p>
+        </div>
+
+        <div class="panel" id="invites-panel" style="display:none;">
+          <div class="panel-title">Invites waiting for you</div>
+          <div id="invite-list"></div>
+        </div>
+
+        <h2 style="font-size:1.05rem; margin-bottom: 12px;">Your groups</h2>
+        <div id="group-list"></div>
+      </div>
+    </main>
   </div>
 
   <script src="js/api.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/app-shell.js"></script>
   <script>
-    document.getElementById("create-group-btn").addEventListener("click", async () => {
-      const name = document.getElementById("group-name").value;
-      const module_code = document.getElementById("module-code").value;
-      if (!name) return;
+    renderAppShell("groups");
+    let myUserId = null;
 
-      try {
-        const group = await apiFetch("/groups/", {
-          method: "POST",
-          body: JSON.stringify({ name, module_code }),
-        });
-        const list = document.getElementById("groups-list");
-        const p = document.createElement("p");
-        p.textContent = `Created group: ${group.name} (id: ${group.id})`;
-        list.appendChild(p);
-      } catch (err) {
-        alert(err.message);
+    async function loadInvites() {
+      const invites = await apiFetch("/groups/invites/pending");
+      const panel = document.getElementById("invites-panel");
+      if (invites.length === 0) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      document.getElementById("invite-list").innerHTML = invites.map(inv => `
+        <div class="request-item">
+          <span class="name"><b>${inv.invited_by_username}</b> invited you to join <b>${inv.group_name}</b></span>
+          <button data-accept="${inv.invite_id}">Accept</button>
+          <button class="reject" data-reject="${inv.invite_id}">Decline</button>
+        </div>`).join("");
+      document.querySelectorAll("[data-accept]").forEach(btn => btn.addEventListener("click", async () => {
+        await apiFetch(`/groups/invites/${btn.dataset.accept}/accept`, { method: "POST" });
+        loadInvites(); loadGroups();
+      }));
+      document.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", async () => {
+        await apiFetch(`/groups/invites/${btn.dataset.reject}/reject`, { method: "POST" });
+        loadInvites();
+      }));
+    }
+
+    function groupCard(g) {
+      const inviteBlock = g.role === "owner" ? `
+        <button class="invite-toggle" data-toggle-invite="${g.id}">${ICONS.plus} Invite a classmate</button>
+        <div class="invite-row" id="invite-form-${g.id}" style="display:none;">
+          <input type="text" id="invite-username-${g.id}" placeholder="username">
+          <button data-send-invite="${g.id}">Send invite</button>
+        </div>
+        <p class="invite-status" id="invite-status-${g.id}"></p>
+      ` : "";
+      return `
+        <div class="group-card">
+          <div class="group-card-top">
+            <div>
+              <h3>${g.name}</h3>
+              ${g.module_code ? `<div class="module">${g.module_code}</div>` : ""}
+            </div>
+            <span class="badge badge-muted">${g.role}</span>
+          </div>
+          <div class="id-line">Group ID: ${g.id}</div>
+          ${inviteBlock}
+          <div class="group-card-footer">
+            <span class="badge badge-secure">${ICONS.lock} Encrypted</span>
+            <a class="open-link" href="files.html?group_id=${g.id}&group_name=${encodeURIComponent(g.name)}">Open group ${ICONS.chevronRight}</a>
+          </div>
+        </div>`;
+    }
+
+    async function loadGroups() {
+      if (document.querySelector('.invite-row[style*="flex"]')) return;
+
+      const groups = await apiFetch("/groups/");
+      const container = document.getElementById("group-list");
+      if (groups.length === 0) {
+        container.innerHTML = `<div class="panel empty-state">${ICONS.groups}<p>You're not in any groups yet. Create one above.</p></div>`;
+        return;
       }
+      container.innerHTML = `<div class="group-grid">${groups.map(groupCard).join("")}</div>`;
+
+      document.querySelectorAll("[data-toggle-invite]").forEach(btn => btn.addEventListener("click", () => {
+        const form = document.getElementById(`invite-form-${btn.dataset.toggleInvite}`);
+        form.style.display = form.style.display === "flex" ? "none" : "flex";
+      }));
+      document.querySelectorAll("[data-send-invite]").forEach(btn => btn.addEventListener("click", async () => {
+        const gid = btn.dataset.sendInvite;
+        const username = document.getElementById(`invite-username-${gid}`).value.trim();
+        const status = document.getElementById(`invite-status-${gid}`);
+        if (!username) { status.textContent = "Enter a username."; return; }
+        try {
+          await apiFetch(`/groups/${gid}/invite`, { method: "POST", body: JSON.stringify({ username }) });
+          status.textContent = `Invite sent to ${username}.`;
+          document.getElementById(`invite-username-${gid}`).value = "";
+        } catch (err) { status.textContent = err.message; }
+      }));
+    }
+
+    document.getElementById("create-btn").addEventListener("click", async () => {
+      const name = document.getElementById("group-name").value.trim();
+      const module_code = document.getElementById("module-code").value.trim();
+      const status = document.getElementById("group-status");
+      if (!name) { status.textContent = "Group name is required."; return; }
+      try {
+        await apiFetch("/groups/", { method: "POST", body: JSON.stringify({ name, module_code }) });
+        document.getElementById("group-name").value = "";
+        document.getElementById("module-code").value = "";
+        status.textContent = "Group created.";
+        loadGroups();
+      } catch (err) { status.textContent = err.message; }
     });
+
+    loadInvites();
+    loadGroups();
+
+    setInterval(() => {
+      loadInvites();
+      loadGroups();
+    }, 4000);
   </script>
 </body>
 </html>

@@ -2,44 +2,245 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CampusConnect - Shared Files</title>
+  <title>CampusConnect - Group</title>
   <link rel="stylesheet" href="css/base.css">
+  <style>
+    .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 10px; }
+    .breadcrumb a { color: var(--color-text-muted); text-decoration: none; display: flex; align-items: center; gap: 4px; }
+    .breadcrumb a:hover { color: var(--color-primary); }
+    .tab-row { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab-btn { background: #fff; color: var(--color-text-muted); border: 1.5px solid var(--color-border); font-size: 0.86rem; padding: 9px 18px; }
+    .tab-btn.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+    .tab-panel { display: none; }
+    .tab-panel.visible { display: block; }
+
+    /* Chat */
+    .group-chat-window { display: flex; flex-direction: column; height: 480px; }
+    #group-messages-area { flex: 1; overflow-y: auto; padding: 6px 4px; display: flex; flex-direction: column; gap: 10px; }
+    .gmsg { max-width: 68%; padding: 9px 14px; border-radius: 14px; font-size: 0.89rem; line-height: 1.4; }
+    .gmsg.mine { align-self: flex-end; background: var(--color-primary); color: #fff; border-bottom-right-radius: 4px; }
+    .gmsg.theirs { align-self: flex-start; background: #fff; border: 1px solid var(--color-border); border-bottom-left-radius: 4px; }
+    .gmsg .sender { display: block; font-size: 0.7rem; font-weight: 700; opacity: 0.75; margin-bottom: 2px; }
+    .gmsg .gtime { display: block; font-size: 0.66rem; opacity: 0.6; margin-top: 4px; }
+    .group-composer { display: flex; gap: 10px; margin-top: 14px; }
+    .group-composer textarea { flex: 1; margin: 0; resize: none; border-radius: 20px; padding: 10px 16px; }
+
+    /* Files */
+    .dropzone { border: 1.5px dashed #c7cae8; border-radius: var(--radius); padding: 30px 20px; text-align: center; background: #fbfbfe; cursor: pointer; }
+    .dropzone:hover, .dropzone.drag-over { border-color: var(--color-primary); background: var(--color-primary-light); }
+    .dropzone svg { color: var(--color-primary); margin-bottom: 8px; }
+    .dropzone .dz-title { font-weight: 600; font-size: 0.9rem; }
+    .dropzone .dz-sub { font-size: 0.78rem; color: var(--color-text-faint); margin-top: 2px; }
+    #upload-status { font-size: 0.82rem; margin-top: 10px; }
+    .file-row { display: flex; align-items: center; gap: 12px; padding: 12px 6px; border-bottom: 1px solid var(--color-border); }
+    .file-row:last-child { border-bottom: none; }
+    .file-icon { width: 36px; height: 36px; border-radius: 9px; background: var(--color-primary-light); color: var(--color-primary-dark); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .file-meta { flex: 1; min-width: 0; }
+    .file-name { font-weight: 600; font-size: 0.86rem; margin: 0; }
+    .file-sub { font-size: 0.74rem; color: var(--color-text-faint); margin: 1px 0 0; }
+    .dl-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; padding: 7px 13px; background: #fff; color: var(--color-primary); border: 1.5px solid var(--color-border); }
+    .dl-btn:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>CampusConnect</h1>
-    <nav>
-  <a href="messages.html">Messages</a> |
-  <a href="groups.html">Groups</a> |
-  <a href="files.html">Files</a>
-</nav>
+  <div class="app-layout">
+    <div id="app-nav-mount"></div>
+    <main class="app-main">
+      <div class="app-content">
+        <div class="breadcrumb"><a href="groups.html" id="back-to-groups"></a></div>
+        <div class="page-header">
+          <h2 id="group-title">Group</h2>
+          <span class="badge badge-secure" id="header-badge"></span>
+        </div>
 
-    <div class="card">
-      <h2>Shared Files</h2>
-      <input type="number" id="group-id" placeholder="Group ID">
-      <input type="file" id="file-input">
-      <button id="upload-btn">Upload</button>
-      <div id="files-list"></div>
-    </div>
+        <div class="tab-row">
+          <button class="tab-btn active" id="tab-chat">Chat</button>
+          <button class="tab-btn" id="tab-files">Files</button>
+        </div>
+
+        <div class="tab-panel visible" id="panel-chat">
+          <div class="panel">
+            <div class="group-chat-window">
+              <div id="group-messages-area"></div>
+              <div class="group-composer">
+                <textarea id="group-message-text" rows="1" placeholder="Message the group..."></textarea>
+                <button class="send-btn-circle" id="group-send-btn" style="border-radius:50%; width:40px; height:40px; padding:0;"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="panel-files">
+          <div class="panel">
+            <div class="panel-title">Upload a file</div>
+            <div class="dropzone" id="dropzone">
+              <div id="icon-upload-slot"></div>
+              <div class="dz-title">Drag a file here, or click to choose one</div>
+              <div class="dz-sub">AES-256 encrypted locally, then wrapped for every current group member</div>
+              <input type="file" id="file-input" style="display:none;">
+            </div>
+            <p id="upload-status"></p>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Shared files</div>
+            <div id="file-list"></div>
+          </div>
+        </div>
+      </div>
+    </main>
   </div>
 
   <script src="js/api.js"></script>
+  <script src="js/crypto.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/app-shell.js"></script>
   <script>
-    document.getElementById("upload-btn").addEventListener("click", async () => {
-      const groupId = document.getElementById("group-id").value;
-      const fileInput = document.getElementById("file-input");
-      if (!groupId || !fileInput.files.length) return;
+    renderAppShell("groups");
+    document.getElementById("icon-upload-slot").innerHTML = ICONS.upload;
+    document.getElementById("back-to-groups").innerHTML = ICONS.chevronLeft + " Back to groups";
+    document.getElementById("header-badge").innerHTML = ICONS.lock + " End-to-end encrypted";
+    document.getElementById("group-send-btn").innerHTML = ICONS.send;
 
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
+    const params = new URLSearchParams(window.location.search);
+    const groupId = params.get("group_id");
+    const groupName = params.get("group_name") || "Group";
+    document.getElementById("group-title").textContent = groupName;
 
-      try {
-        await apiFetchForm(`/files/${groupId}/upload`, formData);
-        alert("File uploaded");
-      } catch (err) {
-        alert(err.message);
+    document.getElementById("tab-chat").addEventListener("click", () => switchTab("chat"));
+    document.getElementById("tab-files").addEventListener("click", () => switchTab("files"));
+    function switchTab(tab) {
+      document.getElementById("tab-chat").classList.toggle("active", tab === "chat");
+      document.getElementById("tab-files").classList.toggle("active", tab === "files");
+      document.getElementById("panel-chat").classList.toggle("visible", tab === "chat");
+      document.getElementById("panel-files").classList.toggle("visible", tab === "files");
+      if (tab === "files") loadFiles();
+    }
+
+    let myEncryptionPrivateKey = null;
+    let mySigningPrivateKey = null;
+    let myUserId = null;
+    async function ensureMyKeys() {
+      if (myEncryptionPrivateKey && mySigningPrivateKey) return;
+      const encPem = sessionStorage.getItem("enc_private_key");
+      const signPem = sessionStorage.getItem("sign_private_key");
+      if (!encPem || !signPem) throw new Error("No keys found for this session — please log in again.");
+      myEncryptionPrivateKey = await importEncryptionPrivateKey(encPem);
+      mySigningPrivateKey = await importSigningPrivateKey(signPem);
+      const me = await apiFetch("/auth/me");
+      myUserId = me.id;
+    }
+
+    async function loadGroupMessages() {
+      await ensureMyKeys();
+      const members = await apiFetch(`/groups/${groupId}/members`);
+      const membersById = Object.fromEntries(members.map(m => [m.user_id, m]));
+      const messages = await apiFetch(`/groups/${groupId}/messages`);
+      const container = document.getElementById("group-messages-area");
+      container.innerHTML = "";
+      for (const msg of messages) {
+        const isMine = msg.sender_id === myUserId;
+        const div = document.createElement("div");
+        div.className = "gmsg " + (isMine ? "mine" : "theirs");
+        const senderKey = membersById[msg.sender_id];
+        const senderLabel = document.createElement("span");
+        senderLabel.className = "sender";
+        senderLabel.textContent = isMine ? "You" : msg.sender_username;
+        const textEl = document.createElement("span");
+        try {
+          if (!senderKey || !senderKey.signing_key) throw new Error("Sender's key unavailable");
+          const text = await decryptGroupMessage(msg, myEncryptionPrivateKey, senderKey.signing_key);
+          textEl.textContent = text;
+        } catch (err) {
+          textEl.textContent = "[Unable to decrypt this message]";
+        }
+        const timeEl = document.createElement("span");
+        timeEl.className = "gtime";
+        timeEl.textContent = parseServerTimestamp(msg.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        div.appendChild(senderLabel); div.appendChild(textEl); div.appendChild(timeEl);
+        container.appendChild(div);
       }
+      container.scrollTop = container.scrollHeight;
+    }
+
+    document.getElementById("group-send-btn").addEventListener("click", async () => {
+      const text = document.getElementById("group-message-text").value.trim();
+      if (!text) return;
+      await ensureMyKeys();
+      const members = await apiFetch(`/groups/${groupId}/members`);
+      const payload = await encryptGroupMessage(text, members, mySigningPrivateKey);
+      await apiFetch(`/groups/${groupId}/messages`, { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("group-message-text").value = "";
+      loadGroupMessages();
     });
+    document.getElementById("group-message-text").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); document.getElementById("group-send-btn").click(); }
+    });
+
+    function fileRow(f) {
+      return `
+        <div class="file-row">
+          <div class="file-icon">${ICONS.file}</div>
+          <div class="file-meta">
+            <p class="file-name">${f.original_filename}</p>
+            <p class="file-sub">Uploaded ${parseServerTimestamp(f.uploaded_at).toLocaleString()}</p>
+          </div>
+          <button class="dl-btn" data-file-id="${f.id}" data-file-name="${f.original_filename}">${ICONS.download} Decrypt &amp; download</button>
+        </div>`;
+    }
+    async function loadFiles() {
+      const files = await apiFetch(`/files/${groupId}`);
+      const container = document.getElementById("file-list");
+      if (files.length === 0) { container.innerHTML = `<div class="empty-state">${ICONS.file}<p>No files shared yet.</p></div>`; return; }
+      container.innerHTML = files.map(fileRow).join("");
+      container.querySelectorAll(".dl-btn").forEach(btn => btn.addEventListener("click", () => downloadAndDecrypt(btn.dataset.fileId, btn.dataset.fileName)));
+    }
+    async function downloadAndDecrypt(fileId, filename) {
+      await ensureMyKeys();
+      try {
+        const download = await apiFetch(`/files/${groupId}/${fileId}/download`);
+        const plainBuffer = await decryptGroupFile(download, myEncryptionPrivateKey);
+        const blob = new Blob([plainBuffer]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) { alert("Could not decrypt this file: " + err.message); }
+    }
+    async function handleUpload(file) {
+      const status = document.getElementById("upload-status");
+      status.textContent = "Fetching group members' public keys...";
+      try {
+        const members = await apiFetch(`/groups/${groupId}/members`);
+        status.textContent = "Encrypting file in your browser...";
+        const { ciphertextBlob, nonce, wrappedKeys } = await encryptFileForGroup(file, members);
+        const formData = new FormData();
+        formData.append("file", ciphertextBlob, file.name);
+        formData.append("nonce", nonce);
+        formData.append("wrapped_keys", JSON.stringify(wrappedKeys));
+        status.textContent = "Uploading ciphertext...";
+        await apiFetchForm(`/files/${groupId}/upload`, formData);
+        status.textContent = `"${file.name}" uploaded and encrypted for ${wrappedKeys.length} member(s).`;
+        loadFiles();
+      } catch (err) { status.textContent = "Upload failed: " + err.message; }
+    }
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("file-input");
+    dropzone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => { if (e.target.files.length) handleUpload(e.target.files[0]); e.target.value = ""; });
+    ["dragenter", "dragover"].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag-over"); }));
+    ["dragleave", "drop"].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag-over"); }));
+    dropzone.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files[0]); });
+
+    if (groupId) loadGroupMessages();
+
+    setInterval(() => {
+      if (!groupId) return;
+      const chatTabActive = document.getElementById("tab-chat").classList.contains("active");
+      if (chatTabActive) {
+        loadGroupMessages();
+      } else {
+        loadFiles();
+      }
+    }, 4000);
   </script>
 </body>
 </html>

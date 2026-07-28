@@ -2,85 +2,117 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CampusConnect</title>
+  <title>CampusConnect - Messages</title>
   <link rel="stylesheet" href="css/base.css">
   <style>
-    .hub-header { background: #0c2d5e; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-radius: 20px 20px 0 0; }
-    .hub-header h1 { color: white; -webkit-text-fill-color: white; background: none; margin: 0; font-size: 1.4rem; }
-    .hub-body { padding: 16px; }
-    .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
-    .search-row input { margin-bottom: 0; }
-    .group-btn { width: 44px; height: 44px; border-radius: 8px; border: 1.5px solid var(--color-border); background: white; cursor: pointer; flex-shrink: 0; font-size: 0.85rem; color: var(--color-text); }
-    .conv-item { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--color-border); cursor: pointer; }
-    .conv-item:hover { background: var(--color-primary-light); border-radius: 8px; }
-    .avatar { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem; color: white; background: var(--color-primary); }
+    .msg-layout { display: flex; height: 100vh; }
+    .conv-pane {
+      width: 320px; flex-shrink: 0; border-right: 1px solid var(--color-border);
+      display: flex; flex-direction: column; background: #fbfbfe;
+    }
+    .conv-pane-header { padding: 20px 18px 12px; }
+    .conv-pane-header h2 { font-size: 1.1rem; margin: 0 0 12px; }
+    .search-wrap { position: relative; }
+    .search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-faint); pointer-events: none; }
+    .search-wrap input { padding-left: 34px; margin-bottom: 0; }
+    #search-results { margin-top: 8px; }
+    #search-results button {
+      display: block; width: 100%; text-align: left; margin-bottom: 6px; font-size: 0.83rem; font-weight: 500;
+      background: #fff; border: 1px solid var(--color-border); color: var(--color-text); padding: 9px 12px;
+    }
+    #search-results button:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
+    .conv-scroll { flex: 1; overflow-y: auto; padding: 4px 12px 16px; }
+    .section-title { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-faint); margin: 16px 6px 6px; }
+    .empty-note { font-size: 0.8rem; color: var(--color-text-faint); padding: 4px 6px; }
+    .conv-item { display: flex; align-items: center; gap: 11px; padding: 9px 8px; border-radius: 10px; cursor: pointer; margin-bottom: 2px; }
+    .conv-item:hover, .conv-item.active { background: var(--color-primary-light); }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; color: #fff; background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark)); font-family: var(--font-display); }
     .conv-info { flex: 1; min-width: 0; }
-    .conv-name { margin: 0; font-weight: 600; font-size: 0.92rem; color: var(--color-text); }
-    .conv-preview { margin: 0; font-size: 0.85rem; color: var(--color-text-muted); }
-    #search-results button { display: block; width: 100%; text-align: left; margin-bottom: 6px; background: white; border: 1px solid var(--color-border); color: var(--color-text); }
-    .section-title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--color-text-muted); margin: 16px 0 8px; }
-    .request-item { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--color-border); }
-    .request-item .name { flex: 1; font-size: 0.9rem; }
-    .request-item button { font-size: 0.8rem; padding: 6px 12px; }
-    .status-badge { font-size: 0.75rem; padding: 2px 10px; border-radius: 12px; }
+    .conv-name { margin: 0; font-weight: 600; font-size: 0.87rem; }
+    .conv-preview { margin: 1px 0 0; font-size: 0.75rem; color: var(--color-text-faint); }
+    .request-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; }
+    .request-item:hover { background: #fff; }
+    .request-item .name { flex: 1; font-size: 0.82rem; font-weight: 500; }
+    .request-item button { font-size: 0.7rem; padding: 5px 10px; }
+    .request-item button.reject { background: #fff; color: var(--color-danger); border: 1px solid var(--color-border); }
+    .status-pill { font-size: 0.66rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
     .status-pending { background: #fef3c7; color: #92400e; }
-    .status-accepted { background: #d1fae5; color: #065f46; }
-    .status-rejected { background: #fee2e2; color: #991b1b; }
-    #conversation-view { display: none; }
-    .conv-header { background: #0c2d5e; padding: 14px 20px; display: flex; align-items: center; gap: 12px; border-radius: 20px 20px 0 0; }
-    .conv-header i { color: white; cursor: pointer; font-size: 1.2rem; }
-    .conv-header .avatar { background: rgba(255,255,255,0.2); }
-    .conv-header-name { color: white; font-weight: 600; }
-    #messages-area { padding: 16px; display: flex; flex-direction: column; gap: 8px; min-height: 200px; max-height: 400px; overflow-y: auto; }
-    .msg-bubble { max-width: 70%; padding: 8px 14px; border-radius: 12px; font-size: 0.9rem; }
-    .msg-bubble.theirs { align-self: flex-start; background: var(--color-primary-light); color: var(--color-text); }
-    .msg-bubble.theirs span:not(.msg-time) { color: var(--color-text); }
-    .msg-bubble.mine { align-self: flex-end; background: #0c2d5e; color: white; }
-    .msg-bubble.mine span:not(.msg-time) { color: white; }
-    .msg-bubble a { color: inherit; }
-    .msg-time { display: block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 4px; }
-    .msg-bubble.mine .msg-time { color: rgba(255,255,255,0.7); }
-    .message-input-row { display: flex; align-items: center; gap: 8px; background: #fbfbfd; border: 1.5px solid var(--color-border); border-radius: 24px; padding: 8px 8px 8px 16px; margin: 16px; }
-    .message-input-row textarea { border: none; margin: 0; padding: 4px; resize: none; background: transparent; flex: 1; color: var(--color-text); }
-    .icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.2rem; padding: 4px; }
-    .send-btn-circle { width: 36px; height: 36px; border-radius: 50%; background: #0c2d5e; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+    .status-accepted { background: var(--color-accent-light); color: var(--color-accent); }
+    .status-rejected { background: var(--color-danger-light); color: var(--color-danger); }
+
+    .chat-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--color-bg); }
+    .chat-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--color-text-faint); gap: 10px; }
+    .chat-empty svg { opacity: 0.35; }
+    .chat-header { padding: 16px 24px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; background: #fff; }
+    .chat-header-name { font-weight: 700; font-size: 0.98rem; font-family: var(--font-display); }
+    .verify-btn { font-size: 0.74rem; font-weight: 600; color: var(--color-primary); background: var(--color-primary-light); padding: 6px 13px; border-radius: 999px; }
+    .verify-btn:hover { background: #e0e2fc; }
+    .chat-header .badge { margin-left: auto; }
+    #safety-number-banner { padding: 12px 24px; background: var(--color-primary-light); border-bottom: 1px solid var(--color-border); font-size: 0.83rem; }
+    #safety-number-value { font-family: var(--font-mono); font-size: 1rem; margin-top: 5px; letter-spacing: 0.03em; font-weight: 600; color: var(--color-primary-dark); }
+    #messages-area {
+      flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+      background: radial-gradient(circle at 10% 15%, rgba(79,70,229,0.03) 0%, transparent 40%), radial-gradient(circle at 90% 85%, rgba(5,150,105,0.03) 0%, transparent 40%);
+    }
+    .msg-bubble { max-width: 58%; padding: 10px 15px; border-radius: 16px; font-size: 0.91rem; line-height: 1.45; }
+    .msg-bubble.theirs { align-self: flex-start; background: #fff; border: 1px solid var(--color-border); border-bottom-left-radius: 4px; }
+    .msg-bubble.mine { align-self: flex-end; background: var(--color-primary); color: white; border-bottom-right-radius: 4px; }
+    .msg-bubble a { color: inherit; font-weight: 600; }
+    .msg-time { display: block; font-size: 0.67rem; margin-top: 4px; opacity: 0.65; }
+    .composer { display: flex; align-items: center; gap: 10px; background: #fff; border-top: 1px solid var(--color-border); padding: 14px 22px; }
+    .composer textarea { flex: 1; border: 1.5px solid var(--color-border); border-radius: 22px; margin: 0; padding: 10px 16px; resize: none; max-height: 100px; }
+    .icon-btn { background: none; border: none; cursor: pointer; color: var(--color-text-muted); padding: 6px; display: flex; }
+    .icon-btn:hover { background: none; color: var(--color-primary); }
+    .send-btn-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card" style="padding: 0; overflow: hidden;">
-      <div id="list-view">
-        <div class="hub-header"><h1>CampusConnect</h1></div>
-        <div class="hub-body">
-          <div class="search-row">
-            <input type="text" id="peer-search" placeholder="Search students to send a request">
-            <button class="group-btn" id="groups-page-btn" title="View groups">Groups</button>
+  <div class="app-layout">
+    <div id="app-nav-mount"></div>
+    <div class="msg-layout" style="flex:1;">
+      <div class="conv-pane">
+        <div class="conv-pane-header">
+          <h2>Messages</h2>
+          <div class="search-wrap">
+            <span id="icon-search-slot"></span>
+            <input type="text" id="peer-search" placeholder="Search students to connect">
           </div>
           <div id="search-results"></div>
-
-          <div class="section-title">Requests waiting for your response</div>
+        </div>
+        <div class="conv-scroll">
+          <div class="section-title">Requests waiting for you</div>
           <div id="pending-requests"></div>
-
           <div class="section-title">Requests you've sent</div>
           <div id="sent-requests"></div>
-
-          <div class="section-title">Your conversations</div>
+          <div class="section-title">Conversations</div>
           <div id="conversation-list"></div>
         </div>
       </div>
 
-      <div id="conversation-view">
-        <div class="conv-header">
-          <i id="back-btn">&#8592;</i>
-          <div class="avatar" id="conv-avatar">?</div>
-          <span class="conv-header-name" id="conv-name">Loading...</span>
+      <div class="chat-pane">
+        <div class="chat-empty" id="chat-empty-state">
+          <div id="icon-bubble-slot"></div>
+          <p style="margin:0;">Select a conversation, or search a student's name to connect.</p>
         </div>
-        <div id="messages-area"></div>
-        <div class="message-input-row">
-          <textarea id="message-text" rows="1" placeholder="Type a message..."></textarea>
-          <input type="file" id="file-input" style="display:none;">
-          <button class="icon-btn" id="attach-btn" title="Attach file">📎</button>
-          <button class="send-btn-circle" id="send-btn" title="Send"><span style="color:white;">&#10148;</span></button>
+        <div id="conversation-view" style="display:none; flex-direction:column; height:100%;">
+          <div class="chat-header">
+            <div class="avatar" id="conv-avatar">?</div>
+            <span class="chat-header-name" id="conv-name">Loading...</span>
+            <button class="icon-btn verify-btn" id="verify-code-btn">Verify security code</button>
+            <span class="badge badge-secure" id="header-lock-slot">End-to-end encrypted</span>
+          </div>
+          <div id="safety-number-banner" style="display:none;">
+            <strong>Your security code with this person:</strong>
+            <div id="safety-number-value"></div>
+            <p style="margin: 6px 0 0; color: var(--color-text-muted);">Read this aloud to them, in person or on a call. If both codes match, no one — including the server — substituted either of your keys.</p>
+          </div>
+          <div id="messages-area"></div>
+          <div class="composer">
+            <textarea id="message-text" rows="1" placeholder="Type a message..."></textarea>
+            <input type="file" id="file-input" style="display:none;">
+            <button class="icon-btn" id="attach-btn" title="Attach file"></button>
+            <button class="send-btn-circle" id="send-btn" title="Send" style="color:white;"></button>
+          </div>
         </div>
       </div>
     </div>
@@ -88,13 +120,21 @@
 
   <script src="js/api.js"></script>
   <script src="js/crypto.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/app-shell.js"></script>
   <script>
+    renderAppShell("messages");
+    document.getElementById("icon-search-slot").innerHTML = ICONS.search;
+    document.getElementById("icon-bubble-slot").innerHTML = ICONS.bubble;
+    document.getElementById("header-lock-slot").innerHTML = ICONS.lock + " End-to-end encrypted";
+    document.getElementById("attach-btn").innerHTML = ICONS.paperclip;
+    document.getElementById("send-btn").innerHTML = ICONS.send;
+
     let myEncryptionPrivateKey = null;
     let mySigningPrivateKey = null;
     let myEncryptionPublicPem = null;
     let currentPeerId = null;
     let pollTimer = null;
-    let acceptedPeers = JSON.parse(localStorage.getItem("acceptedPeers") || "[]");
 
     async function ensureMyKeys() {
       if (myEncryptionPrivateKey && mySigningPrivateKey && myEncryptionPublicPem) return;
@@ -108,9 +148,8 @@
       myEncryptionPublicPem = myKeys.encryption_key;
     }
 
-    document.getElementById("groups-page-btn").addEventListener("click", () => { window.location.href = "groups.html"; });
+    function initials(name) { return name.slice(0, 2).toUpperCase(); }
 
-    // --- Search and send request ---
     let searchTimeout = null;
     document.getElementById("peer-search").addEventListener("input", (e) => {
       clearTimeout(searchTimeout);
@@ -128,127 +167,83 @@
             document.getElementById("peer-search").value = "";
             resultsDiv.innerHTML = "";
             try {
-              await apiFetch("/messages/conversations/request", {
-                method: "POST",
-                body: JSON.stringify({ peer_id: user.id }),
-              });
-              alert(`Connection request sent to ${user.username}`);
+              await apiFetch("/messages/conversations/request", { method: "POST", body: JSON.stringify({ peer_id: user.id }) });
               loadSentRequests();
-            } catch (err) {
-              alert(err.message);
-            }
+            } catch (err) { alert(err.message); }
           });
           resultsDiv.appendChild(btn);
         });
       }, 300);
     });
 
-    // --- Pending requests (need my response) ---
     async function loadPendingRequests() {
       const pending = await apiFetch("/messages/conversations/pending");
       const container = document.getElementById("pending-requests");
+      if (pending.length === 0) { container.innerHTML = '<p class="empty-note">No pending requests.</p>'; return; }
       container.innerHTML = "";
-      if (pending.length === 0) {
-        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.85rem; padding: 4px;">No pending requests.</p>';
-        return;
-      }
       pending.forEach(req => {
         const div = document.createElement("div");
         div.className = "request-item";
         div.innerHTML = `<span class="name">${req.from_username} wants to connect</span>`;
-
         const acceptBtn = document.createElement("button");
         acceptBtn.textContent = "Accept";
         acceptBtn.addEventListener("click", async () => {
           await apiFetch(`/messages/conversations/${req.conversation_id}/accept`, { method: "POST" });
-          if (!acceptedPeers.find(p => p.id === req.from_id)) {
-            acceptedPeers.unshift({ id: req.from_id, username: req.from_username });
-            localStorage.setItem("acceptedPeers", JSON.stringify(acceptedPeers));
-          }
-          loadPendingRequests();
-          renderConversationList();
+          loadPendingRequests(); renderConversationList();
         });
-
         const rejectBtn = document.createElement("button");
+        rejectBtn.className = "reject";
         rejectBtn.textContent = "Reject";
         rejectBtn.addEventListener("click", async () => {
           await apiFetch(`/messages/conversations/${req.conversation_id}/reject`, { method: "POST" });
           loadPendingRequests();
         });
-
-        div.appendChild(acceptBtn);
-        div.appendChild(rejectBtn);
+        div.appendChild(acceptBtn); div.appendChild(rejectBtn);
         container.appendChild(div);
       });
     }
 
-    // --- Sent requests (status tracking) ---
     async function loadSentRequests() {
       const sent = await apiFetch("/messages/conversations/sent");
       const container = document.getElementById("sent-requests");
-      container.innerHTML = "";
-      if (sent.length === 0) {
-        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.85rem; padding: 4px;">No requests sent yet.</p>';
-        return;
-      }
-      sent.forEach(req => {
-        const div = document.createElement("div");
-        div.className = "request-item";
-        const badgeClass = "status-" + req.status;
-        div.innerHTML = `<span class="name">${req.to_username}</span><span class="status-badge ${badgeClass}">${req.status}</span>`;
-        container.appendChild(div);
-      });
+      if (sent.length === 0) { container.innerHTML = '<p class="empty-note">No requests sent yet.</p>'; return; }
+      container.innerHTML = sent.map(req => `<div class="request-item"><span class="name">${req.to_username}</span><span class="status-pill status-${req.status}">${req.status}</span></div>`).join("");
     }
 
-    // --- Conversation list (accepted connections only) ---
-    function renderConversationList() {
+    async function renderConversationList() {
+      const accepted = await apiFetch("/messages/conversations/accepted");
       const container = document.getElementById("conversation-list");
+      if (accepted.length === 0) { container.innerHTML = '<p class="empty-note">No conversations yet.</p>'; return; }
       container.innerHTML = "";
-      if (acceptedPeers.length === 0) {
-        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.9rem; padding: 16px 4px;">No conversations yet. Send a request above to get started.</p>';
-        return;
-      }
-      acceptedPeers.forEach(conv => {
+      accepted.forEach(conv => {
         const div = document.createElement("div");
-        div.className = "conv-item";
-        div.innerHTML = `<div class="avatar">${conv.username.slice(0,2).toUpperCase()}</div><div class="conv-info"><p class="conv-name">${conv.username}</p><p class="conv-preview">Tap to open conversation</p></div>`;
-        div.addEventListener("click", () => openConversation(conv.id, conv.username));
+        div.className = "conv-item" + (conv.peer_id === currentPeerId ? " active" : "");
+        div.innerHTML = `<div class="avatar">${initials(conv.peer_username)}</div><div class="conv-info"><p class="conv-name">${conv.peer_username}</p><p class="conv-preview">Tap to open</p></div>`;
+        div.addEventListener("click", () => openConversation(conv.peer_id, conv.peer_username));
         container.appendChild(div);
       });
     }
 
     function openConversation(peerId, peerName) {
       currentPeerId = peerId;
-      document.getElementById("list-view").style.display = "none";
-      document.getElementById("conversation-view").style.display = "block";
+      document.getElementById("chat-empty-state").style.display = "none";
+      document.getElementById("conversation-view").style.display = "flex";
       document.getElementById("conv-name").textContent = peerName;
-      document.getElementById("conv-avatar").textContent = peerName.slice(0,2).toUpperCase();
+      document.getElementById("conv-avatar").textContent = initials(peerName);
+      document.getElementById("safety-number-banner").style.display = "none";
+      renderConversationList();
       loadConversation();
-
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(loadConversation, 3000);
-    }
-
-    document.getElementById("back-btn").addEventListener("click", () => {
-      if (pollTimer) clearInterval(pollTimer);
-      document.getElementById("conversation-view").style.display = "none";
-      document.getElementById("list-view").style.display = "block";
-      loadPendingRequests();
-      loadSentRequests();
-      renderConversationList();
-    });
-
-    function formatTimestamp(isoString) {
-      const date = new Date(isoString);
-      return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     }
 
     async function loadConversation() {
       if (!currentPeerId) return;
       await ensureMyKeys();
-      const senderKeys = await apiFetch(`/keys/${currentPeerId}`);
+      const me = await apiFetch("/auth/me");
+      const myId = me.id;
+      const [myOwnKeys, peerKeys] = await Promise.all([apiFetch(`/keys/${myId}`), apiFetch(`/keys/${currentPeerId}`)]);
       const messages = await apiFetch(`/messages/${currentPeerId}`);
-      const myId = (await apiFetch("/auth/me")).id;
       const container = document.getElementById("messages-area");
       container.innerHTML = "";
 
@@ -259,19 +254,16 @@
         const textEl = document.createElement("span");
         const timeEl = document.createElement("span");
         timeEl.className = "msg-time";
-        timeEl.textContent = formatTimestamp(msg.created_at);
-
+        timeEl.textContent = parseServerTimestamp(msg.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
         try {
-          const msgForDecrypt = isMine
-            ? { ...msg, enc_aes_key: msg.enc_aes_key_sender }
-            : msg;
-          const rawBytes = await decryptMessage(msgForDecrypt, myEncryptionPrivateKey, senderKeys.signing_key);
+          const msgForDecrypt = isMine ? { ...msg, enc_aes_key: msg.enc_aes_key_sender } : msg;
+          const signerPublicKey = isMine ? myOwnKeys.signing_key : peerKeys.signing_key;
+          const rawBytes = await decryptMessage(msgForDecrypt, myEncryptionPrivateKey, signerPublicKey);
           if (msg.is_file) {
             const blob = new Blob([rawBytes]);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
-            link.href = url;
-            link.download = msg.original_filename;
+            link.href = url; link.download = msg.original_filename;
             link.textContent = "📎 " + msg.original_filename;
             textEl.appendChild(link);
           } else {
@@ -280,13 +272,21 @@
         } catch (err) {
           textEl.textContent = "[Unable to decrypt this message]";
         }
-
-        bubble.appendChild(textEl);
-        bubble.appendChild(timeEl);
+        bubble.appendChild(textEl); bubble.appendChild(timeEl);
         container.appendChild(bubble);
       }
       container.scrollTop = container.scrollHeight;
     }
+
+    document.getElementById("verify-code-btn").addEventListener("click", async () => {
+      const banner = document.getElementById("safety-number-banner");
+      if (banner.style.display === "block") { banner.style.display = "none"; return; }
+      await ensureMyKeys();
+      const peerKeys = await apiFetch(`/keys/${currentPeerId}`);
+      const code = await computeSafetyNumber(myEncryptionPublicPem, peerKeys.encryption_key);
+      document.getElementById("safety-number-value").textContent = code;
+      banner.style.display = "block";
+    });
 
     document.getElementById("send-btn").addEventListener("click", async () => {
       const text = document.getElementById("message-text").value.trim();
@@ -299,9 +299,11 @@
       document.getElementById("message-text").value = "";
       loadConversation();
     });
+    document.getElementById("message-text").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); document.getElementById("send-btn").click(); }
+    });
 
     document.getElementById("attach-btn").addEventListener("click", () => { document.getElementById("file-input").click(); });
-
     document.getElementById("file-input").addEventListener("change", async (e) => {
       if (!currentPeerId || !e.target.files.length) return;
       const file = e.target.files[0];
@@ -319,6 +321,16 @@
     loadPendingRequests();
     loadSentRequests();
     renderConversationList();
+
+    // Added: these used to only load once on page load, so a request/
+    // invite/new conversation from another user only appeared after a
+    // manual browser refresh. Now polled every 4 seconds, independent of
+    // whether a conversation is currently open.
+    setInterval(() => {
+      loadPendingRequests();
+      loadSentRequests();
+      renderConversationList();
+    }, 4000);
   </script>
 </body>
 </html>

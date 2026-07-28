@@ -24,12 +24,22 @@ def create_app(config_class=Config):
     from app.messaging.routes import messaging_bp
     from app.groups.routes import groups_bp
     from app.files.routes import files_bp
+    from app.admin.routes import admin_bp  # Added
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(crypto_bp, url_prefix="/api/keys")
     app.register_blueprint(messaging_bp, url_prefix="/api/messages")
     app.register_blueprint(groups_bp, url_prefix="/api/groups")
     app.register_blueprint(files_bp, url_prefix="/api/files")
+    app.register_blueprint(admin_bp, url_prefix="/api/admin")  # Added
+
+    @app.after_request
+    def set_security_headers(response):
+        # Added: basic secure-header hygiene.
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
 
     @app.route("/")
     def root():

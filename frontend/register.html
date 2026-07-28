@@ -4,57 +4,183 @@
   <meta charset="UTF-8">
   <title>CampusConnect - Register</title>
   <link rel="stylesheet" href="css/base.css">
+  <style>
+    .stage { display: none; }
+    .stage.active { display: block; }
+    .code-input {
+      text-align: center; font-size: 1.4rem; letter-spacing: 0.4em; font-family: var(--font-mono);
+      padding: 12px 10px 12px 20px;
+    }
+    .password-wrap { position: relative; }
+    .password-wrap input { padding-right: 42px; }
+    .toggle-pw {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; padding: 4px; color: var(--color-text-faint); cursor: pointer;
+    }
+    .toggle-pw:hover { background: none; color: var(--color-primary); }
+    .resend-link { background: none; border: none; color: var(--color-primary); font-weight: 600; font-size: 0.83rem; padding: 0; cursor: pointer; }
+    .resend-link:hover { background: none; text-decoration: underline; }
+    .step-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 18px; }
+    .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border); }
+    .step-dot.active { background: var(--color-primary); }
+    .step-dot.done { background: var(--color-accent); }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>CampusConnect</h1>
-    <p>Secure communication and collaboration platform for students.</p>
+  <div class="auth-shell">
+    <div class="auth-hero">
+      <div class="auth-hero-content">
+        <div class="mark" id="hero-mark"></div>
+        <h1>Campus<b>Connect</b></h1>
+        <p class="lead">A private space for students to message, share study materials, and coordinate group work — built so no one but you and the person you're talking to can ever read it.</p>
+        <div class="auth-hero-points">
+          <div class="auth-hero-point"><div class="dot" id="pt-lock"></div><div class="txt"><b>End-to-end encrypted messages.</b> Every message is locked with your own key before it leaves your browser.</div></div>
+          <div class="auth-hero-point"><div class="dot" id="pt-users"></div><div class="txt"><b>Real email verification.</b> A one-time code is sent to your Google account before you can register.</div></div>
+          <div class="auth-hero-point"><div class="dot" id="pt-groups"></div><div class="txt"><b>Encrypted group files.</b> Study materials are wrapped individually for every group member — never stored in plain form.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="auth-form-side">
+      <div class="container">
+        <div class="card" style="margin-top:0;">
+          <div class="step-dots">
+            <div class="step-dot" id="dot-1"></div>
+            <div class="step-dot" id="dot-2"></div>
+            <div class="step-dot" id="dot-3"></div>
+          </div>
 
-    <div class="card">
-      <h2>Register</h2>
-      <form id="register-form">
-        <label for="email">University email</label>
-        <input type="email" id="email" placeholder="you@dbs.ie" required>
+          <!-- Stage 1: email -->
+          <div class="stage active" id="stage-email">
+            <h2>Create your account</h2>
+            <form id="email-form">
+              <label for="email">Google email</label>
+              <input type="email" id="email" placeholder="you@gmail.com" required>
+              <button type="submit" style="width: 100%; margin-top: 18px;">Send verification code</button>
+            </form>
+            <p id="email-status" class="status-line"></p>
+            <p style="text-align: center; font-size: 0.87rem; margin-top: 14px;">
+              Already have an account? <a href="login.html" style="font-weight: 600;">Log in</a>
+            </p>
+          </div>
 
-        <label for="username">Username</label>
-        <input type="text" id="username" placeholder="your username" required>
+          <!-- Stage 2: code -->
+          <div class="stage" id="stage-code">
+            <h2>Enter your code</h2>
+            <p style="font-size: 0.87rem; margin-top: -8px;">We sent a 6-digit code to <b id="code-target-email"></b>.</p>
+            <form id="code-form">
+              <input type="text" id="code" class="code-input" maxlength="6" inputmode="numeric" placeholder="000000" required>
+              <button type="submit" style="width: 100%; margin-top: 18px;">Verify code</button>
+            </form>
+            <p id="code-status" class="status-line"></p>
+            <p style="text-align: center; margin-top: 10px;">
+              <button type="button" class="resend-link" id="resend-btn">Resend code</button>
+            </p>
+          </div>
 
-        <label for="password">Password</label>
-        <input type="password" id="password" placeholder="••••••••••" required>
+          <!-- Stage 3: password -->
+          <div class="stage" id="stage-password">
+            <h2>Set a password</h2>
+            <p style="font-size: 0.87rem; margin-top: -8px;">Email verified. Choose a password to finish creating your account.</p>
+            <form id="password-form">
+              <label for="password">Password</label>
+              <div class="password-wrap">
+                <input type="password" id="password" placeholder="10+ chars, upper, lower, digit, symbol" required>
+                <button type="button" class="toggle-pw" data-target="password"></button>
+              </div>
 
-        <button type="submit" style="width: 100%; margin-bottom: 16px;">Create account</button>
-      </form>
-      <p style="text-align: center; font-size: 0.9rem;">
-        Already have an account? <a href="login.html" style="color: var(--color-primary); font-weight: 600;">Log in</a>
-      </p>
-      <p id="register-status"></p>
+              <label for="confirm-password">Confirm password</label>
+              <div class="password-wrap">
+                <input type="password" id="confirm-password" placeholder="Re-enter your password" required>
+                <button type="button" class="toggle-pw" data-target="confirm-password"></button>
+              </div>
+
+              <button type="submit" style="width: 100%; margin-top: 18px;">Create account</button>
+            </form>
+            <p id="password-status" class="status-line"></p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
+  <script src="js/icons.js"></script>
   <script src="js/api.js"></script>
-  <script src="js/validation.js"></script>
   <script>
-    document.getElementById("register-form").addEventListener("submit", async (e) => {
+    document.getElementById("hero-mark").innerHTML = ICONS.lock;
+    document.getElementById("pt-lock").innerHTML = ICONS.lock;
+    document.getElementById("pt-users").innerHTML = ICONS.users;
+    document.getElementById("pt-groups").innerHTML = ICONS.groups;
+
+    const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const EYE_CLOSED = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    document.querySelectorAll(".toggle-pw").forEach(btn => btn.innerHTML = EYE_OPEN);
+
+    document.querySelectorAll(".toggle-pw").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const input = document.getElementById(btn.dataset.target);
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        btn.innerHTML = showing ? EYE_OPEN : EYE_CLOSED;
+      });
+    });
+
+    let registeringEmail = "";
+
+    function goToStage(stageName) {
+      document.querySelectorAll(".stage").forEach(s => s.classList.remove("active"));
+      document.getElementById(`stage-${stageName}`).classList.add("active");
+      const stages = ["email", "code", "password"];
+      stages.forEach((s, i) => {
+        const dot = document.getElementById(`dot-${i + 1}`);
+        dot.classList.remove("active", "done");
+        if (s === stageName) dot.classList.add("active");
+        else if (stages.indexOf(stageName) > i) dot.classList.add("done");
+      });
+    }
+
+    document.getElementById("email-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = document.getElementById("email").value;
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
-      const status = document.getElementById("register-status");
-
-      if (!isValidEmail(email) || !isValidUsername(username) || !isValidPassword(password)) {
-        status.textContent = "Please check your email, username and password format.";
-        return;
-      }
-
+      const email = document.getElementById("email").value.trim();
+      const status = document.getElementById("email-status");
       try {
-        await apiFetch("/auth/register", {
-          method: "POST",
-          body: JSON.stringify({ email, username, password }),
-        });
-        status.textContent = "Registered! You can now log in.";
-      } catch (err) {
-        status.textContent = err.message;
-      }
+        const data = await apiFetch("/auth/request-code", { method: "POST", body: JSON.stringify({ email }) });
+        registeringEmail = email;
+        document.getElementById("code-target-email").textContent = email;
+        status.textContent = "";
+        goToStage("code");
+      } catch (err) { status.textContent = err.message; }
+    });
+
+    document.getElementById("code-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const code = document.getElementById("code").value.trim();
+      const status = document.getElementById("code-status");
+      try {
+        await apiFetch("/auth/verify-code", { method: "POST", body: JSON.stringify({ email: registeringEmail, code }) });
+        status.textContent = "";
+        goToStage("password");
+      } catch (err) { status.textContent = err.message; }
+    });
+
+    document.getElementById("resend-btn").addEventListener("click", async () => {
+      const status = document.getElementById("code-status");
+      try {
+        await apiFetch("/auth/request-code", { method: "POST", body: JSON.stringify({ email: registeringEmail }) });
+        status.textContent = "A new code has been sent.";
+      } catch (err) { status.textContent = err.message; }
+    });
+
+    document.getElementById("password-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const password = document.getElementById("password").value;
+      const confirmPassword = document.getElementById("confirm-password").value;
+      const status = document.getElementById("password-status");
+      if (password !== confirmPassword) { status.textContent = "Passwords do not match."; return; }
+      try {
+        await apiFetch("/auth/complete-registration", { method: "POST", body: JSON.stringify({ email: registeringEmail, password }) });
+        status.textContent = "Account created. Redirecting to login...";
+        setTimeout(() => { window.location.href = "login.html"; }, 1000);
+      } catch (err) { status.textContent = err.message; }
     });
   </script>
 </body>

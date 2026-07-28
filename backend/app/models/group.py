@@ -24,3 +24,22 @@ class GroupMembership(db.Model):
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint("group_id", "user_id", name="uq_group_user"),)
+
+
+class GroupInvite(db.Model):
+    """
+    Added: groups previously used open self-join by numeric ID (anyone who
+    knew/guessed it could join, no approval). This replaces that with an
+    invite the owner sends and the invitee must explicitly accept before a
+    GroupMembership row is ever created.
+    """
+    __tablename__ = "group_invites"
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("groups.id"), nullable=False)
+    invited_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    invited_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    status = db.Column(db.String(20), default="pending", nullable=False)  # pending/accepted/rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("group_id", "invited_user_id", name="uq_group_invite"),)
