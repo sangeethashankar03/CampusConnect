@@ -104,8 +104,8 @@
   </div>
 
   <script src="js/icons.js"></script>
-  <script src="js/crypto.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/crypto.js"></script>
   <script>
     document.getElementById("hero-mark").innerHTML = ICONS.lock;
     document.getElementById("pt-lock").innerHTML = ICONS.lock;
@@ -178,6 +178,7 @@
       const status = document.getElementById("password-status");
       if (password !== confirmPassword) { status.textContent = "Passwords do not match."; return; }
       try {
+        const { authHalf } = await derivePasswordHalves(password);
         await apiFetch("/auth/complete-registration", { method: "POST", body: JSON.stringify({ email: registeringEmail, password: authHalf }) });
         status.textContent = "Account created. Redirecting to login...";
         setTimeout(() => { window.location.href = "login.html"; }, 1000);
