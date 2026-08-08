@@ -58,8 +58,8 @@
       const status = document.getElementById("login-status");
 
       try {
+        const { authHalf } = await derivePasswordHalves(password);
         const data = await apiFetch("/auth/login", { method: "POST", body: JSON.stringify({ email, password: authHalf }) });
-
         setToken(data.access_token);
 
         let keys;
