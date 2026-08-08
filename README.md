@@ -5,6 +5,34 @@ For this project, we are planning to build a secure communication and collaborat
 
 Students will be able to register, log in, send messages, create group chats, and share files related to their studies and projects. We plan to implement secure user authentication, end-to-end encrypted communication, password hashing, and access control so that only authorised users can access protected content.
 
+## Fixes
+
+Three critical vulnerabilities were identified by peer teams during the B9IS103 penetration testing exercise. All three have been fixed and deployed.
+
+### C-01: Server Can Decrypt All User Content
+
+The attacking team identified that the login password was sent to the server in plaintext, and since the server also stores kdf_salt and enc_private_key_blob, it held all three ingredients needed to derive the key-encryption-key (KEK) and decrypt private keys.
+
+Fix: The password is now split into two independent halves in the browser before anything is sent to the server. authHalf is sent to the server for bcrypt authentication only. encHalf stays in the browser and is used as the sole input to KEK derivation. The server never receives encHalf, so it cannot derive the KEK even with kdf_salt and enc_private_key_blob.
+
+Files changed: frontend/js/crypto.js, frontend/login.html, frontend/register.html
+
+### C-03: Stored XSS via Group Name
+
+The attacking team created a group with a malicious name containing JavaScript. Because groups.html used innerHTML to render group names, the script executed in every visitor's browser and could steal private keys from sessionStorage.
+
+Fix: Added escapeHtml() to frontend/groups.html that converts all HTML characters to safe text before inserting into the DOM. Added server-side HTML tag stripping in backend/app/groups/routes.py using re.sub() before the group name is saved to the database.
+
+Files changed: frontend/groups.html, backend/app/groups/routes.py
+
+### C-04: No Rate Limiting
+
+The attacking team sent 40 concurrent requests to /api/auth/request-code, exhausting the Render free-tier worker pool and causing service unavailability.
+
+Fix: Added a 60-second database-backed rate limit at the start of the request_code function. If a code was already sent to the same email within 60 seconds, the request is rejected with HTTP 429 before any email is sent or any worker thread is occupied.
+
+Files changed: backend/app/auth/routes.py
+
 ##Features
 - Identity and access control
 Gmail-verified registration: a 6-digit one-time code is emailed before an account can be created (real Gmail SMTP)
