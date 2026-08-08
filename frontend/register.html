@@ -177,7 +177,7 @@
       const status = document.getElementById("password-status");
       if (password !== confirmPassword) { status.textContent = "Passwords do not match."; return; }
       try {
-        await apiFetch("/auth/complete-registration", { method: "POST", body: JSON.stringify({ email: registeringEmail, password }) });
+        await apiFetch("/auth/complete-registration", { method: "POST", body: JSON.stringify({ email: registeringEmail, password: authHalf }) });
         status.textContent = "Account created. Redirecting to login...";
         setTimeout(() => { window.location.href = "login.html"; }, 1000);
       } catch (err) { status.textContent = err.message; }

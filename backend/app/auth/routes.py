@@ -38,6 +38,12 @@ def request_code():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "An account with this email already exists"}), 409
 
+    existing = PendingVerification.query.filter_by(email=email).first()
+    if existing:
+        seconds_since = (datetime.utcnow() - existing.created_at).total_seconds()
+        if seconds_since < 60:
+            return jsonify({"error": "Please wait 60 seconds before requesting another code"}), 429
+
     code = f"{random.randint(0, 999999):06d}"
     expires_at = datetime.utcnow() + timedelta(seconds=current_app.config["VERIFICATION_CODE_EXPIRY_SECONDS"])
 

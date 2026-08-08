@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-
+import re
 from app.extensions import db
 from app.models.group import Group, GroupMembership, GroupInvite
 from app.models.message import GroupMessage, GroupMessageKey
@@ -27,6 +27,7 @@ def list_my_groups():
 def create_group():
     data = request.get_json(silent=True) or {}
     name = data.get("name", "").strip()
+    name = re.sub(r'<[^>]+>', '', name)
     module_code = data.get("module_code", "").strip()
     if not name:
         return jsonify({"error": "Group name is required"}), 400
@@ -40,11 +41,6 @@ def create_group():
     db.session.commit()
     return jsonify({"id": group.id, "name": group.name}), 201
 
-
-# ------------------------- Invite-based joining -------------------------
-# Added: replaces open self-join by group ID. Only the owner can invite,
-# by username; the invitee must explicitly accept before a GroupMembership
-# row is created.
 
 @groups_bp.route("/<int:group_id>/invite", methods=["POST"])
 @jwt_required()
@@ -148,12 +144,6 @@ def list_members(group_id):
         })
     return jsonify(results), 200
 
-
-# ------------------------- Encrypted group chat -------------------------
-# Added: groups previously had file sharing only, no chat. Same envelope
-# encryption pattern as file sharing: client encrypts once with a fresh AES
-# key, wraps it once per CURRENT member's public key (including the sender,
-# so they can read their own sent messages).
 
 @groups_bp.route("/<int:group_id>/messages", methods=["POST"])
 @jwt_required()

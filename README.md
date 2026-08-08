@@ -42,7 +42,7 @@ backend/
     models/        SQLAlchemy models
   migrations/      Alembic/Flask-Migrate schema history
 ```
-> **Golden rule:** plaintext must never reach the backend or the database. All cryptography — key generation, encryption, decryption, signing, signature and safety-number verification — happens in the browser via the Web Crypto API (`frontend/js/crypto.js`).
+ ##plaintext must never reach the backend or the database. All cryptography — key generation, encryption, decryption, signing, signature and safety-number verification — happens in the browser via the Web Crypto API (`frontend/js/crypto.js`).
 Component responsibilities
 Tier	Responsibility
 Client	Static pages served by Flask; all key generation and encrypt/decrypt via Web Crypto API; polls the REST API for new messages (no WebSocket layer)

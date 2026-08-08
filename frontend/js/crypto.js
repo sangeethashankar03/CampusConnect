@@ -1,6 +1,22 @@
-async function deriveKekFromPassword(password, saltBytes) {
+async function derivePasswordHalves(password) {
+  const enc = new TextEncoder();
   const baseKey = await window.crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+    "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits"]
+  );
+  const bits = await window.crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: enc.encode("campusconnect-password-split-v1"), iterations: 100000, hash: "SHA-256" },
+    baseKey,
+    512
+  );
+  const arr = new Uint8Array(bits);
+  const authHalf = arrayBufferToBase64(arr.slice(0, 32).buffer);
+  const encHalf  = arrayBufferToBase64(arr.slice(32, 64).buffer);
+  return { authHalf, encHalf };
+}
+
+async function deriveKekFromEncHalf(encHalf, saltBytes) {
+  const baseKey = await window.crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(encHalf), { name: "PBKDF2" }, false, ["deriveKey"]
   );
   return window.crypto.subtle.deriveKey(
     { name: "PBKDF2", salt: saltBytes, iterations: 210000, hash: "SHA-256" },
@@ -32,7 +48,8 @@ async function setupNewKeysForPassword(password) {
   const encPair = await generateEncryptionKeyPair();
   const signPair = await generateSigningKeyPair();
   const salt = window.crypto.getRandomValues(new Uint8Array(16));
-  const kek = await deriveKekFromPassword(password, salt);
+  const { encHalf } = await derivePasswordHalves(password);
+  const kek = await deriveKekFromEncHalf(encHalf, salt);
 
   return {
     encryption_key: await exportPublicKeyPem(encPair.publicKey),
@@ -47,7 +64,8 @@ async function setupNewKeysForPassword(password) {
 
 async function recoverKeysForPassword(password, backup) {
   const salt = base64ToArrayBuffer(backup.kdf_salt);
-  const kek = await deriveKekFromPassword(password, new Uint8Array(salt));
+  const { encHalf } = await derivePasswordHalves(password);
+  const kek = await deriveKekFromEncHalf(encHalf, new Uint8Array(salt));
   const encryptionPrivateKey = await unwrapPrivateKeyWithKek(
     backup.enc_private_key_blob, kek, { name: "RSA-OAEP", hash: "SHA-256" }
   );
@@ -72,6 +90,7 @@ async function generateSigningKeyPair() {
     ["sign", "verify"]
   );
 }
+
 async function exportPublicKeyPem(publicKey) {
   const spki = await window.crypto.subtle.exportKey("spki", publicKey);
   return arrayBufferToPem(spki, "PUBLIC KEY");
@@ -90,6 +109,7 @@ function pemToArrayBuffer(pem) {
     .replace(/\s/g, "");
   return base64ToArrayBuffer(b64);
 }
+
 async function importEncryptionPublicKey(pem) {
   return window.crypto.subtle.importKey(
     "spki",
@@ -123,94 +143,83 @@ function base64ToArrayBuffer(base64) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
 }
+
 async function generateAesKey() {
-  return window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
-    "encrypt",
-    "decrypt",
-  ]);
+  return window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
+
+async function encryptMessage(plaintext, recipientEncryptionKeyPem, senderSigningPrivateKey) {
+  const aesKey = await generateAesKey();
+  const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+  const encodedText = new TextEncoder().encode(plaintext);
+  const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, encodedText);
+  const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+  const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
+  const encAesKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientEncryptionKey, rawAesKey);
+  const signature = await window.crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, senderSigningPrivateKey, ciphertext);
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    nonce: arrayBufferToBase64(nonce),
+    enc_aes_key: arrayBufferToBase64(encAesKey),
+    signature: arrayBufferToBase64(signature),
+  };
+}
+
 async function decryptMessage(payload, recipientEncryptionPrivateKey, senderSigningKeyPem) {
   const ciphertext = base64ToArrayBuffer(payload.ciphertext);
   const nonce = base64ToArrayBuffer(payload.nonce);
   const signature = base64ToArrayBuffer(payload.signature);
-
   const senderVerifyKey = await importVerifyPublicKey(senderSigningKeyPem);
-  const isValid = await window.crypto.subtle.verify(
-    { name: "RSA-PSS", saltLength: 32 },
-    senderVerifyKey,
-    signature,
-    ciphertext
-  );
-  if (!isValid) {
-    throw new Error("Signature verification failed — message may have been tampered with");
-  }
-
+  const isValid = await window.crypto.subtle.verify({ name: "RSA-PSS", saltLength: 32 }, senderVerifyKey, signature, ciphertext);
+  if (!isValid) throw new Error("Signature verification failed — message may have been tampered with");
   const encAesKey = base64ToArrayBuffer(payload.enc_aes_key);
-  const rawAesKey = await window.crypto.subtle.decrypt(
-    { name: "RSA-OAEP" },
-    recipientEncryptionPrivateKey,
-    encAesKey
-  );
-  const aesKey = await window.crypto.subtle.importKey("raw", rawAesKey, { name: "AES-GCM" }, false, [
-    "decrypt",
-  ]);
-
-  const plaintextBuffer = await window.crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: nonce },
-    aesKey,
-    ciphertext
-  );
+  const rawAesKey = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, recipientEncryptionPrivateKey, encAesKey);
+  const aesKey = await window.crypto.subtle.importKey("raw", rawAesKey, { name: "AES-GCM" }, false, ["decrypt"]);
+  const plaintextBuffer = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, aesKey, ciphertext);
   return plaintextBuffer;
 }
+
 async function exportPrivateKeyPem(privateKey) {
   const pkcs8 = await window.crypto.subtle.exportKey("pkcs8", privateKey);
   return arrayBufferToPem(pkcs8, "PRIVATE KEY");
 }
 
 async function importEncryptionPrivateKey(pem) {
-  return window.crypto.subtle.importKey(
-    "pkcs8",
-    pemToArrayBuffer(pem),
-    { name: "RSA-OAEP", hash: "SHA-256" },
-    true,
-    ["decrypt"]
-  );
+  return window.crypto.subtle.importKey("pkcs8", pemToArrayBuffer(pem), { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt"]);
 }
 
 async function importSigningPrivateKey(pem) {
-  return window.crypto.subtle.importKey(
-    "pkcs8",
-    pemToArrayBuffer(pem),
-    { name: "RSA-PSS", hash: "SHA-256" },
-    true,
-    ["sign"]
-  );
+  return window.crypto.subtle.importKey("pkcs8", pemToArrayBuffer(pem), { name: "RSA-PSS", hash: "SHA-256" }, true, ["sign"]);
 }
+
+async function encryptFile(file, recipientEncryptionKeyPem, senderSigningPrivateKey) {
+  const arrayBuffer = await file.arrayBuffer();
+  const aesKey = await generateAesKey();
+  const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, arrayBuffer);
+  const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+  const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
+  const encAesKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientEncryptionKey, rawAesKey);
+  const signature = await window.crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, senderSigningPrivateKey, ciphertext);
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    nonce: arrayBufferToBase64(nonce),
+    enc_aes_key: arrayBufferToBase64(encAesKey),
+    signature: arrayBufferToBase64(signature),
+  };
+}
+
 async function encryptMessageDual(plaintext, recipientEncryptionKeyPem, senderEncryptionKeyPem, senderSigningPrivateKey) {
   const aesKey = await generateAesKey();
   const nonce = window.crypto.getRandomValues(new Uint8Array(12));
-
   const encodedText = new TextEncoder().encode(plaintext);
-  const ciphertext = await window.crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
-    aesKey,
-    encodedText
-  );
-
+  const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, encodedText);
   const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
-
   const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
   const encAesKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientEncryptionKey, rawAesKey);
-
   const senderEncryptionKey = await importEncryptionPublicKey(senderEncryptionKeyPem);
   const encAesKeySender = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, senderEncryptionKey, rawAesKey);
-
-  const signature = await window.crypto.subtle.sign(
-    { name: "RSA-PSS", saltLength: 32 },
-    senderSigningPrivateKey,
-    ciphertext
-  );
-
+  const signature = await window.crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, senderSigningPrivateKey, ciphertext);
   return {
     ciphertext: arrayBufferToBase64(ciphertext),
     nonce: arrayBufferToBase64(nonce),
@@ -224,22 +233,13 @@ async function encryptFileDual(file, recipientEncryptionKeyPem, senderEncryption
   const arrayBuffer = await file.arrayBuffer();
   const aesKey = await generateAesKey();
   const nonce = window.crypto.getRandomValues(new Uint8Array(12));
-
   const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, arrayBuffer);
   const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
-
   const recipientEncryptionKey = await importEncryptionPublicKey(recipientEncryptionKeyPem);
   const encAesKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientEncryptionKey, rawAesKey);
-
   const senderEncryptionKey = await importEncryptionPublicKey(senderEncryptionKeyPem);
   const encAesKeySender = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, senderEncryptionKey, rawAesKey);
-
-  const signature = await window.crypto.subtle.sign(
-    { name: "RSA-PSS", saltLength: 32 },
-    senderSigningPrivateKey,
-    ciphertext
-  );
-
+  const signature = await window.crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, senderSigningPrivateKey, ciphertext);
   return {
     ciphertext: arrayBufferToBase64(ciphertext),
     nonce: arrayBufferToBase64(nonce),
@@ -253,12 +253,8 @@ async function encryptFileForGroup(file, members) {
   const arrayBuffer = await file.arrayBuffer();
   const aesKey = await generateAesKey();
   const nonce = window.crypto.getRandomValues(new Uint8Array(12));
-
-  const ciphertext = await window.crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce }, aesKey, arrayBuffer
-  );
+  const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, arrayBuffer);
   const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
-
   const wrappedKeys = [];
   for (const member of members) {
     if (!member.encryption_key) continue;
@@ -266,7 +262,6 @@ async function encryptFileForGroup(file, members) {
     const wrapped = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, rawAesKey);
     wrappedKeys.push({ user_id: member.user_id, wrapped_key: arrayBufferToBase64(wrapped) });
   }
-
   return {
     ciphertextBlob: new Blob([ciphertext]),
     nonce: arrayBufferToBase64(nonce),
@@ -276,9 +271,7 @@ async function encryptFileForGroup(file, members) {
 
 async function decryptGroupFile(download, myEncryptionPrivateKey) {
   const wrappedKey = base64ToArrayBuffer(download.wrapped_key);
-  const rawAesKey = await window.crypto.subtle.decrypt(
-    { name: "RSA-OAEP" }, myEncryptionPrivateKey, wrappedKey
-  );
+  const rawAesKey = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, myEncryptionPrivateKey, wrappedKey);
   const aesKey = await window.crypto.subtle.importKey("raw", rawAesKey, { name: "AES-GCM" }, false, ["decrypt"]);
   const nonce = base64ToArrayBuffer(download.nonce);
   const ciphertext = base64ToArrayBuffer(download.ciphertext);
@@ -297,14 +290,12 @@ async function computeSafetyNumber(myEncryptionPublicPem, peerEncryptionPublicPe
   return groups.join("").match(/.{1,5}/g).join("  ");
 }
 
-
 async function encryptGroupMessage(plaintext, members, mySigningPrivateKey) {
   const aesKey = await generateAesKey();
   const nonce = window.crypto.getRandomValues(new Uint8Array(12));
   const encodedText = new TextEncoder().encode(plaintext);
   const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, encodedText);
   const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
-
   const wrappedKeys = [];
   for (const member of members) {
     if (!member.encryption_key) continue;
@@ -312,11 +303,7 @@ async function encryptGroupMessage(plaintext, members, mySigningPrivateKey) {
     const wrapped = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, rawAesKey);
     wrappedKeys.push({ user_id: member.user_id, wrapped_key: arrayBufferToBase64(wrapped) });
   }
-
-  const signature = await window.crypto.subtle.sign(
-    { name: "RSA-PSS", saltLength: 32 }, mySigningPrivateKey, ciphertext
-  );
-
+  const signature = await window.crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, mySigningPrivateKey, ciphertext);
   return {
     ciphertext: arrayBufferToBase64(ciphertext),
     nonce: arrayBufferToBase64(nonce),
@@ -326,19 +313,13 @@ async function encryptGroupMessage(plaintext, members, mySigningPrivateKey) {
 }
 
 async function decryptGroupMessage(msg, myEncryptionPrivateKey, senderSigningKeyPem) {
-  if (!msg.wrapped_key) {
-    throw new Error("No key available for you on this message (sent before you joined?)");
-  }
+  if (!msg.wrapped_key) throw new Error("No key available for you on this message (sent before you joined?)");
   const ciphertext = base64ToArrayBuffer(msg.ciphertext);
   const nonce = base64ToArrayBuffer(msg.nonce);
   const signature = base64ToArrayBuffer(msg.signature);
-
   const senderVerifyKey = await importVerifyPublicKey(senderSigningKeyPem);
-  const isValid = await window.crypto.subtle.verify(
-    { name: "RSA-PSS", saltLength: 32 }, senderVerifyKey, signature, ciphertext
-  );
+  const isValid = await window.crypto.subtle.verify({ name: "RSA-PSS", saltLength: 32 }, senderVerifyKey, signature, ciphertext);
   if (!isValid) throw new Error("Signature verification failed — message may have been tampered with");
-
   const wrappedKey = base64ToArrayBuffer(msg.wrapped_key);
   const rawAesKey = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, myEncryptionPrivateKey, wrappedKey);
   const aesKey = await window.crypto.subtle.importKey("raw", rawAesKey, { name: "AES-GCM" }, false, ["decrypt"]);
