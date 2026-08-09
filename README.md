@@ -1,6 +1,6 @@
 # CampusConnect
 
-##Project Idea
+## Project Idea
 For this project, we are planning to build a secure communication and collaboration platform called CampusConnect. The main idea is to provide a platform where university students can communicate with each other, create study groups, and share academic resources in a secure environment.
 
 Students will be able to register, log in, send messages, create group chats, and share files related to their studies and projects. We plan to implement secure user authentication, end-to-end encrypted communication, password hashing, and access control so that only authorised users can access protected content.
@@ -99,12 +99,8 @@ Plaintext must never reach the backend or the database. All cryptography — key
 - **Receiving** — recipient unwraps the AES key with their own RSA private key, decrypts the content, and verifies the signature against the sender's public signing key.
 - **Out-of-band verification** — for direct conversations, both users can compute and compare a safety number derived from each other's public keys, to detect a server-side key-substitution attack.
 ---
+
 ## Security
-
-CampusConnect is designed under the assumption that the server and database could be read by an attacker (or a curious operator). The objective is damage limitation: a compromised server must not expose readable message or file content.
-
-### Implemented Controls
-
 - End-to-end RSA-OAEP + AES-256-GCM encryption for direct messages, group chat, and group files
 - RSA-PSS signatures on every message, verified client-side
 - Gmail one-time-code identity verification before account creation
@@ -263,7 +259,8 @@ All routes are prefixed `/api` and (except registration/login) require `Authoriz
 |---|---|---|
 | GET | `/users` | Full user roster — requires `role = admin` (promote manually via SQL) |
 ---
-Frontend pages
+
+## Frontend pages
 Page	Purpose
 `login.html` / `register.html`	Auth + the 3-step Gmail verification flow
 `messages.html`	Search users, manage connection requests, encrypted 1:1 chat, safety numbers
